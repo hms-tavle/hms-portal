@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { ChevronDown, ChevronUp, X } from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
+import Layout from '@/components/Layout'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -302,7 +302,6 @@ function TaskRow({
 
 export default function DashboardPage() {
   const { session } = useAuth()
-  const navigate = useNavigate()
 
   const [association, setAssociation] = useState<Association | null>(null)
   const [tasks, setTasks] = useState<TaskTemplate[]>([])
@@ -381,11 +380,6 @@ export default function DashboardPage() {
     }
   }
 
-  async function handleSignOut() {
-    await supabase.auth.signOut()
-    navigate('/login')
-  }
-
   const latestCompletion = (taskId: string): TaskCompletion | null =>
     completions.find(c => c.task_template_id === taskId) ?? null
 
@@ -411,29 +405,14 @@ export default function DashboardPage() {
   })()
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="border-b sticky top-0 bg-background z-10">
-        <div className="max-w-3xl mx-auto px-4 py-4 flex items-center justify-between">
-          <div>
-            <p className="text-xs text-muted-foreground uppercase tracking-wide">HMS-portal</p>
-            <h1 className="text-base font-semibold leading-tight">
-              {loading ? '…' : association?.navn ?? 'Ingen forening funnet'}
-            </h1>
-          </div>
-          <Button variant="ghost" size="sm" onClick={handleSignOut}>
-            Logg ut
-          </Button>
-        </div>
-      </header>
+    <Layout associationName={loading ? undefined : association?.navn ?? 'Ingen forening funnet'}>
+      {loading && <p className="text-muted-foreground">Laster oppgaver…</p>}
 
-      <main className="max-w-3xl mx-auto px-4 py-6">
-        {loading && <p className="text-muted-foreground">Laster oppgaver…</p>}
+      {!loading && !association && (
+        <p className="text-muted-foreground">Ingen boligforening funnet for din konto.</p>
+      )}
 
-        {!loading && !association && (
-          <p className="text-muted-foreground">Ingen boligforening funnet for din konto.</p>
-        )}
-
-        {!loading && association && (() => {
+      {!loading && association && (() => {
           const currentYear = String(new Date().getFullYear())
           const defaultTab = yearGroups.find(g => String(g.key) === currentYear)
             ? currentYear
@@ -468,8 +447,7 @@ export default function DashboardPage() {
               ))}
             </Tabs>
           )
-        })()}
-      </main>
-    </div>
+      })()}
+    </Layout>
   )
 }

@@ -4,6 +4,8 @@ import ProtectedRoute from '@/components/ProtectedRoute'
 import LoginPage from '@/pages/auth/LoginPage'
 import OnboardingPage from '@/pages/onboarding/OnboardingPage'
 import DashboardPage from '@/pages/dashboard/DashboardPage'
+import MembersPage from '@/pages/members/MembersPage'
+import InvitePage from '@/pages/invite/InvitePage'
 
 export default function App() {
   return (
@@ -20,6 +22,15 @@ export default function App() {
               </ProtectedRoute>
             }
           />
+          <Route
+            path="/members"
+            element={
+              <ProtectedRoute>
+                <MembersPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route path="/invite" element={<InvitePage />} />
           <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>
       </HashRouter>
