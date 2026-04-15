@@ -9,6 +9,7 @@ A React frontend with Supabase backend for managing HMS (Health, Safety and Envi
 3. **Recurring tasks** — Tasks that repeat on a schedule (weekly, monthly, annually, etc.)
 4. **Task assignment** — Tasks can be assigned to specific members
 5. **Legal compliance** — Tasks are grounded in Norwegian law requirements for housing associations
+6. **Individual users** — Users can register as individuals (personal workspace) and also belong to one or more associations
 
 ## Domain Language
 - **Borettslag** — Housing cooperative (members own shares)
@@ -88,7 +89,7 @@ A React frontend with Supabase backend for managing HMS (Health, Safety and Envi
   - `crypto.randomUUID()` used client-side for association ID to avoid RLS SELECT issue after insert
 - Auth session management (`src/lib/auth.tsx`) — `AuthProvider` + `useAuth` hook via `onAuthStateChange`
 - `ProtectedRoute` component — redirects to `/login` if no session
-- Shared `Layout` component (`src/components/Layout.tsx`) — sticky header + nav bar (Oppgaver / Medlemmer)
+- Shared `Layout` component (`src/components/Layout.tsx`) — sticky header + workspace switcher + nav bar (Oppgaver / Medlemmer)
 - Dashboard (`/dashboard`) — year-based tabs (Forfalt / current year / future years / Ved behov)
   - Tasks grouped by next due date year, not category
   - Category shown as secondary label within each tab
@@ -98,11 +99,18 @@ A React frontend with Supabase backend for managing HMS (Health, Safety and Envi
   - Delete own completions (× button), read-only for others' entries
   - Completer name shown in history
   - Sub-annual count display (e.g. `1/2 utført i 2026` for twice_yearly)
+  - Personal workspace shows empty state ("Ingen oppgaver ennå")
 - Members page (`/members`) — lists all association members with role, email, active/inactive status
-  - Invite flow: "Inviter" generates a 7-day UUID token, shows copyable link
+  - Invite flow: "Inviter" generates a 7-day UUID token, shows copyable link with X to dismiss
   - "Forny" regenerates an expired token
-- Invite page (`/invite?token=...`) — unauthenticated, validates token, shows member name/role, signup form
-  - `claim_invite(token uuid)` security definer function links new user_id to member row and clears token
+  - Personal workspace shows unavailable message
+- Invite page (`/invite?token=...`) — unauthenticated, validates token, shows member name/role
+  - If already logged in: one-click claim ("Bli med i [association]")
+  - If not logged in: tab switcher between "Logg inn" and "Opprett konto", then claims invite
+  - `claim_invite(token uuid)` security definer function links user_id, syncs auth email into `association_members.email` (coalesce — preserves onboarding email if set), clears token, creates user_profiles row
+- Individual registration (`/register`) — simple signup (name, email, password), creates `user_profiles` row
+- Workspace switcher — top-level tabs in Layout; shown only when user has >1 workspace; defaults to first association
+  - `refreshWorkspaces()` reads from `supabase.auth.getSession()` (not React `session` state) so it works immediately after `signUp()` — React state is still null at that point due to deferred re-render
 - Task list — all 28 pre-seeded legal HMS tasks
 - Supabase migrations applied (see Migrations section)
 - RLS: `get_my_association_ids()` security definer function breaks infinite recursion
@@ -111,10 +119,10 @@ A React frontend with Supabase backend for managing HMS (Health, Safety and Envi
 - Codebase refactored: shared constants, types, and hooks extracted (see Codebase Structure below)
 
 ### Next up
+- **Custom tasks** — user-defined tasks for personal workspace and associations
 - **Email verification** — re-enable after members sign up via invite link
 - **Deadline reminder emails** — Resend + Supabase Edge Functions + pg_cron (daily check, send reminders for tasks due within 14 days)
 - **Feature flags** — hide conditional tasks (heis, lekeplass, radon) if building lacks those features
-- **Custom tasks** — user-defined tasks (e.g. "Water plants")
 - **Trial expiry enforcement** — lock access when trial ends
 
 ### Deferred
@@ -164,11 +172,20 @@ A React frontend with Supabase backend for managing HMS (Health, Safety and Envi
 
 28 tasks pre-seeded across 10 categories. See `supabase/migrations/20260415113448_seed_task_templates.sql`.
 
+### `user_profiles`
+| column | type | notes |
+|---|---|---|
+| id | uuid PK | = auth.users.id — one row per user |
+| full_name | text | user-provided on individual signup, or from brreg via claim_invite |
+| created_at | timestamptz | |
+
+Created on: individual signup (`/register`), association onboarding (`/onboarding`), or invite acceptance (`claim_invite()`).
+
 ### `task_completions`
 | column | type | notes |
 |---|---|---|
 | id | uuid PK | |
-| association_id | uuid FK | → associations.id |
+| association_id | uuid FK nullable | → associations.id — null for personal workspace tasks |
 | task_template_id | uuid FK | → task_templates.id |
 | completed_by | uuid FK nullable | → auth.users.id |
 | completed_at | timestamptz | defaults to now() |
@@ -187,13 +204,14 @@ A React frontend with Supabase backend for managing HMS (Health, Safety and Envi
 ### RLS notes
 - `get_my_association_ids()` — security definer function to avoid infinite recursion in `association_members` policies
 - `task_templates` — readable by everyone (anon + authenticated)
-- `task_completions` — read/insert for authenticated members; DELETE restricted to own entries (`completed_by = auth.uid()`)
+- `task_completions` — read/insert for authenticated members; personal completions (`association_id IS NULL`) scoped to `completed_by = auth.uid()`; DELETE restricted to own entries
 - `task_assignments` — full CRUD for association members
-- `association_members` — anon can SELECT a row by valid invite token (UUID unguessable); authenticated members can UPDATE invite token fields; `claim_invite(token uuid)` security definer function links user and clears token
+- `association_members` — anon can SELECT a row by valid invite token (UUID unguessable); authenticated members can UPDATE invite token fields
+- `user_profiles` — users can read/insert/update only their own row (`id = auth.uid()`)
 
 ### Security definer functions
 - `get_my_association_ids()` — returns association IDs for current user; used in all membership-checking RLS policies
-- `claim_invite(token uuid)` — validates token, sets `user_id = auth.uid()`, clears token; called from `/invite` page after signUp()
+- `claim_invite(token uuid)` — validates token, sets `user_id = auth.uid()`, clears token, creates `user_profiles` row (ON CONFLICT DO NOTHING)
 
 ## Codebase Structure
 
@@ -205,8 +223,14 @@ A React frontend with Supabase backend for managing HMS (Health, Safety and Envi
 - `brreg.ts` — Brønnøysundregisteret API response types
 - `app.ts` — `Association`, `AssociationMember`, `TaskTemplate`, `TaskCompletion`, `SubscriptionStatus`
 
+### Workspace context (`src/contexts/WorkspaceContext.tsx`)
+- `WorkspaceProvider` — fetches `user_profiles` (personal workspace) + `association_members` (association workspaces); deduplicates by association ID; defaults to first association
+- `useWorkspace()` — returns `{ workspaces, activeWorkspace, setActiveWorkspace, refreshWorkspaces, loading }`
+- `Workspace` union type: `PersonalWorkspace { kind:'personal', id, displayName }` | `AssociationWorkspace { kind:'association', id, displayName, association }`
+- `refreshWorkspaces()` — manually re-fetches; called after `claim_invite()` to pick up new association without a page reload
+
 ### Shared hooks (`src/hooks/`)
-- `useAssociation.ts` — fetches the current user's association; used by Dashboard and Members pages
+- `useAssociation.ts` — legacy hook, still present but superseded by `useWorkspace()` from WorkspaceContext
 
 ### Brreg helpers (`src/lib/brreg.ts`)
 - `ORG_FORM_CODES` — `['BRL', 'ESEK', 'SA']` — allowed housing association org forms
@@ -224,8 +248,9 @@ Using Supabase CLI installed as dev dependency (`npx supabase`).
 - `HashRouter` used for GitHub Pages compatibility (no server-side routing)
 - Routes:
   - `/login` — public
-  - `/onboarding` — public
-  - `/invite?token=...` — public (unauthenticated invite acceptance)
+  - `/register` — public (individual signup)
+  - `/onboarding` — public (association signup)
+  - `/invite?token=...` — public (invite acceptance; handles logged-in and logged-out users)
   - `/dashboard` — protected
   - `/members` — protected
 - Unauthenticated users redirect to `/login`

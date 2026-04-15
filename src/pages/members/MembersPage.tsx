@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { X } from 'lucide-react'
 import Layout from '@/components/Layout'
 import { getRoleLabel, ROLE_ORDER } from '@/constants/roles'
 import type { AssociationMember } from '@/types/app'
@@ -27,6 +28,7 @@ export default function MembersPage() {
   const [membersLoading, setMembersLoading] = useState(true)
   const [generating, setGenerating] = useState<string | null>(null)
   const [copied, setCopied] = useState<string | null>(null)
+  const [collapsedLinks, setCollapsedLinks] = useState<Set<string>>(new Set())
 
   const loading = assocLoading || membersLoading
 
@@ -78,7 +80,13 @@ export default function MembersPage() {
   async function copyInvite(memberId: string, token: string) {
     await navigator.clipboard.writeText(inviteUrl(token))
     setCopied(memberId)
+    // Reveal the URL when copying so the user can verify what was copied
+    setCollapsedLinks(prev => { const s = new Set(prev); s.delete(memberId); return s })
     setTimeout(() => setCopied(null), 2000)
+  }
+
+  function hideLink(memberId: string) {
+    setCollapsedLinks(prev => new Set([...prev, memberId]))
   }
 
   return (
@@ -111,6 +119,11 @@ export default function MembersPage() {
                     </div>
                     {member.email && (
                       <p className="text-xs text-muted-foreground">{member.email}</p>
+                    )}
+                        {hasValidInvite && (
+                      <p className="text-xs text-muted-foreground">
+                        Invitasjon utløper {new Date(member.invite_expires_at!).toLocaleDateString('nb-NO', { day: 'numeric', month: 'short', year: 'numeric' })}
+                      </p>
                     )}
                   </div>
 
@@ -149,14 +162,18 @@ export default function MembersPage() {
                   )}
                 </div>
 
-                {hasValidInvite && (
-                  <div className="mt-2 ml-0">
-                    <p className="text-xs text-muted-foreground break-all font-mono bg-muted rounded px-2 py-1">
+                {hasValidInvite && !collapsedLinks.has(member.id) && (
+                  <div className="mt-2 flex items-start gap-2">
+                    <p className="flex-1 text-xs text-muted-foreground break-all font-mono bg-muted rounded px-2 py-1">
                       {inviteUrl(member.invite_token!)}
                     </p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Utløper {new Date(member.invite_expires_at!).toLocaleDateString('nb-NO', { day: 'numeric', month: 'short', year: 'numeric' })}
-                    </p>
+                    <button
+                      className="mt-1 shrink-0 text-muted-foreground hover:text-foreground"
+                      onClick={() => hideLink(member.id)}
+                      aria-label="Skjul lenke"
+                    >
+                      <X size={14} />
+                    </button>
                   </div>
                 )}
               </div>

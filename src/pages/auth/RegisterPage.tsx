@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Link, useNavigate } from 'react-router-dom'
 import { useState } from 'react'
+import { useWorkspace } from '@/contexts/WorkspaceContext'
 
 const schema = z.object({
   full_name: z.string().min(2, 'Navn er påkrevd'),
@@ -23,6 +24,7 @@ type FormValues = z.infer<typeof schema>
 
 export default function RegisterPage() {
   const navigate = useNavigate()
+  const { refreshWorkspaces } = useWorkspace()
   const [serverError, setServerError] = useState<string | null>(null)
 
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<FormValues>({
@@ -56,6 +58,7 @@ export default function RegisterPage() {
       return
     }
 
+    await refreshWorkspaces()
     navigate('/dashboard')
   }
 

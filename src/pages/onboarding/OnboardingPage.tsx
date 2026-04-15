@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useWorkspace } from '@/contexts/WorkspaceContext'
 import { searchAssociations, fetchRoller, formatName, getOrgFormLabel } from '@/lib/brreg'
 import type { BrregEnhet, BrregRolle } from '@/types/brreg'
 import { supabase } from '@/lib/supabase'
@@ -19,6 +20,7 @@ interface MemberWithEmail extends BrregRolle {
 
 export default function OnboardingPage() {
   const navigate = useNavigate()
+  const { refreshWorkspaces } = useWorkspace()
   const [step, setStep] = useState<Step>('search')
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<BrregEnhet[]>([])
@@ -162,6 +164,7 @@ export default function OnboardingPage() {
       .from('user_profiles')
       .insert({ id: authData.user!.id, full_name: styrelederName })
 
+    await refreshWorkspaces()
     navigate('/dashboard')
   }
 
