@@ -35,6 +35,12 @@ interface TaskCompletion {
   id: string
   task_template_id: string
   completed_at: string
+  completed_by: string | null
+}
+
+interface AssociationMember {
+  user_id: string | null
+  full_name: string
 }
 
 type TaskStatus = 'overdue' | 'due_soon' | 'on_track' | 'never' | 'per_project'
@@ -152,11 +158,15 @@ function StatusDot({ status }: { status: TaskStatus }) {
 function TaskRow({
   task,
   allCompletions,
+  memberNames,
+  currentUserId,
   onMarkDone,
   onDeleteCompletion,
 }: {
   task: TaskTemplate
   allCompletions: TaskCompletion[]
+  memberNames: Map<string, string>
+  currentUserId: string
   onMarkDone: (task: TaskTemplate, date: string) => Promise<void>
   onDeleteCompletion: (id: string) => Promise<void>
 }) {
@@ -263,15 +273,22 @@ function TaskRow({
           ) : (
             taskCompletions.map(c => (
               <div key={c.id} className="flex items-center justify-between gap-4">
-                <span className="text-xs text-muted-foreground">{formatDate(c.completed_at)}</span>
-                <button
-                  className="text-muted-foreground hover:text-destructive disabled:opacity-40"
-                  disabled={deleting === c.id}
-                  onClick={() => handleDelete(c.id)}
-                  aria-label="Slett fullføring"
-                >
-                  <X size={12} />
-                </button>
+                <span className="text-xs text-muted-foreground">
+                  {formatDate(c.completed_at)}
+                  {c.completed_by && memberNames.get(c.completed_by) && (
+                    <> · {memberNames.get(c.completed_by)}</>
+                  )}
+                </span>
+                {c.completed_by === currentUserId && (
+                  <button
+                    className="text-muted-foreground hover:text-destructive disabled:opacity-40"
+                    disabled={deleting === c.id}
+                    onClick={() => handleDelete(c.id)}
+                    aria-label="Slett fullføring"
+                  >
+                    <X size={12} />
+                  </button>
+                )}
               </div>
             ))
           )}
@@ -290,6 +307,7 @@ export default function DashboardPage() {
   const [association, setAssociation] = useState<Association | null>(null)
   const [tasks, setTasks] = useState<TaskTemplate[]>([])
   const [completions, setCompletions] = useState<TaskCompletion[]>([])
+  const [memberNames, setMemberNames] = useState<Map<string, string>>(new Map())
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -305,17 +323,27 @@ export default function DashboardPage() {
       if (!assoc) { setLoading(false); return }
       setAssociation(assoc)
 
-      const [{ data: taskData }, { data: completionData }] = await Promise.all([
+      const [{ data: taskData }, { data: completionData }, { data: membersData }] = await Promise.all([
         supabase.from('task_templates').select('*').order('sort_order'),
         supabase
           .from('task_completions')
-          .select('id, task_template_id, completed_at')
+          .select('id, task_template_id, completed_at, completed_by')
           .eq('association_id', assoc.id)
           .order('completed_at', { ascending: false }),
+        supabase
+          .from('association_members')
+          .select('user_id, full_name')
+          .eq('association_id', assoc.id),
       ])
 
       setTasks(taskData ?? [])
       setCompletions(completionData ?? [])
+
+      const names = new Map<string, string>()
+      for (const m of (membersData ?? []) as AssociationMember[]) {
+        if (m.user_id) names.set(m.user_id, m.full_name)
+      }
+      setMemberNames(names)
       setLoading(false)
     }
     load()
@@ -429,6 +457,8 @@ export default function DashboardPage() {
                         key={task.id}
                         task={task}
                         allCompletions={completions}
+                        memberNames={memberNames}
+                        currentUserId={session!.user.id}
                         onMarkDone={markDone}
                         onDeleteCompletion={deleteCompletion}
                       />
