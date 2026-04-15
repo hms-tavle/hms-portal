@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "WebFetch(domain:www.styret.com)",
+      "Bash(npm install *)",
+      "Bash(npx shadcn@latest *)"
+    ]
+  }
+}
