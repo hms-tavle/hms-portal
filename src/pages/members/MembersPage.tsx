@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import Layout from '@/components/Layout'
 import { getRoleLabel, ROLE_ORDER } from '@/constants/roles'
 import type { AssociationMember } from '@/types/app'
-import { useAssociation } from '@/hooks/useAssociation'
+import { useWorkspace } from '@/contexts/WorkspaceContext'
 
 function inviteUrl(token: string): string {
   const base = window.location.href.split('#')[0]
@@ -20,7 +20,8 @@ function isExpired(expiresAt: string | null): boolean {
 // ── Component ────────────────────────────────────────────────────────────────
 
 export default function MembersPage() {
-  const { association, loading: assocLoading } = useAssociation()
+  const { activeWorkspace, loading: assocLoading } = useWorkspace()
+  const association = activeWorkspace?.kind === 'association' ? activeWorkspace.association : null
 
   const [members, setMembers] = useState<AssociationMember[]>([])
   const [membersLoading, setMembersLoading] = useState(true)
@@ -81,11 +82,13 @@ export default function MembersPage() {
   }
 
   return (
-    <Layout associationName={association?.navn}>
+    <Layout>
       {loading && <p className="text-muted-foreground">Laster medlemmer…</p>}
 
       {!loading && !association && (
-        <p className="text-muted-foreground">Ingen boligforening funnet for din konto.</p>
+        <div className="text-center py-12">
+          <p className="text-muted-foreground">Medlemsliste er ikke tilgjengelig for personlig konto.</p>
+        </div>
       )}
 
       {!loading && association && (

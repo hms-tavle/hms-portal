@@ -157,6 +157,11 @@ export default function OnboardingPage() {
       return
     }
 
+    const styrelederName = styreleder?.person ? formatName(styreleder.person.navn) : 'Ukjent'
+    await supabase
+      .from('user_profiles')
+      .insert({ id: authData.user!.id, full_name: styrelederName })
+
     navigate('/dashboard')
   }
 

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/lib/auth'
-import { useAssociation } from '@/hooks/useAssociation'
+import { useWorkspace } from '@/contexts/WorkspaceContext'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
@@ -328,7 +328,8 @@ function TaskRow({
 
 export default function DashboardPage() {
   const { session } = useAuth()
-  const { association, loading: assocLoading } = useAssociation()
+  const { activeWorkspace, loading: wsLoading } = useWorkspace()
+  const association = activeWorkspace?.kind === 'association' ? activeWorkspace.association : null
 
   const [tasks, setTasks] = useState<TaskTemplate[]>([])
   const [completions, setCompletions] = useState<TaskCompletion[]>([])
@@ -337,12 +338,13 @@ export default function DashboardPage() {
   const [assignments, setAssignments] = useState<Map<string, string>>(new Map())
   const [dataLoading, setDataLoading] = useState(true)
 
-  const loading = assocLoading || dataLoading
+  const loading = wsLoading || dataLoading
 
   useEffect(() => {
-    if (assocLoading) return
+    if (wsLoading) return
     if (!association) { setDataLoading(false); return }
 
+    setDataLoading(true)
     const assocId = association.id
 
     async function load() {
@@ -384,7 +386,7 @@ export default function DashboardPage() {
     }
 
     load()
-  }, [assocLoading, association])
+  }, [wsLoading, activeWorkspace])
 
   async function markDone(task: TaskTemplate, dateStr: string) {
     if (!association) return
@@ -465,11 +467,14 @@ export default function DashboardPage() {
   })()
 
   return (
-    <Layout associationName={loading ? undefined : association?.navn ?? 'Ingen forening funnet'}>
+    <Layout>
       {loading && <p className="text-muted-foreground">Laster oppgaver…</p>}
 
       {!loading && !association && (
-        <p className="text-muted-foreground">Ingen boligforening funnet for din konto.</p>
+        <div className="text-center py-12 space-y-1">
+          <p className="text-muted-foreground">Ingen oppgaver ennå.</p>
+          <p className="text-sm text-muted-foreground">Egendefinerte oppgaver kommer snart.</p>
+        </div>
       )}
 
       {!loading && association && (() => {

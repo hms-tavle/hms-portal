@@ -107,10 +107,11 @@ A React frontend with Supabase backend for managing HMS (Health, Safety and Envi
 - Supabase migrations applied (see Migrations section)
 - RLS: `get_my_association_ids()` security definer function breaks infinite recursion
 - GitHub Pages deployed at `https://hms-tavle.github.io/hms-portal/` via GitHub Actions
+- Task assignment — inline "Ansvarlig" dropdown per task row; stored in `task_assignments` table
+- Codebase refactored: shared constants, types, and hooks extracted (see Codebase Structure below)
 
 ### Next up
 - **Email verification** — re-enable after members sign up via invite link
-- **Task assignment** — assign tasks to specific members
 - **Deadline reminder emails** — Resend + Supabase Edge Functions + pg_cron (daily check, send reminders for tasks due within 14 days)
 - **Feature flags** — hide conditional tasks (heis, lekeplass, radon) if building lacks those features
 - **Custom tasks** — user-defined tasks (e.g. "Water plants")
@@ -173,15 +174,45 @@ A React frontend with Supabase backend for managing HMS (Health, Safety and Envi
 | completed_at | timestamptz | defaults to now() |
 | notes | text nullable | |
 
+### `task_assignments`
+| column | type | notes |
+|---|---|---|
+| id | uuid PK | |
+| association_id | uuid FK | → associations.id |
+| task_template_id | uuid FK | → task_templates.id |
+| assigned_to | uuid FK | → association_members.id |
+| created_at | timestamptz | |
+| | | unique(association_id, task_template_id) — one assignee per task |
+
 ### RLS notes
 - `get_my_association_ids()` — security definer function to avoid infinite recursion in `association_members` policies
 - `task_templates` — readable by everyone (anon + authenticated)
 - `task_completions` — read/insert for authenticated members; DELETE restricted to own entries (`completed_by = auth.uid()`)
+- `task_assignments` — full CRUD for association members
 - `association_members` — anon can SELECT a row by valid invite token (UUID unguessable); authenticated members can UPDATE invite token fields; `claim_invite(token uuid)` security definer function links user and clears token
 
 ### Security definer functions
 - `get_my_association_ids()` — returns association IDs for current user; used in all membership-checking RLS policies
 - `claim_invite(token uuid)` — validates token, sets `user_id = auth.uid()`, clears token; called from `/invite` page after signUp()
+
+## Codebase Structure
+
+### Shared constants (`src/constants/`)
+- `roles.ts` — `ROLE_CODES`, `ROLE_LABELS`, `ROLE_ORDER`, `getRoleLabel(code)` — role codes and Norwegian labels
+- `recurrence.ts` — `RECURRENCE_CODES`, `RECURRENCE_LABELS`, `RECURRENCE_DAYS`, `RECURRENCE_PER_YEAR`, plus `getRecurrenceLabel/Days/PerYear()` helpers
+
+### Shared types (`src/types/`)
+- `brreg.ts` — Brønnøysundregisteret API response types
+- `app.ts` — `Association`, `AssociationMember`, `TaskTemplate`, `TaskCompletion`, `SubscriptionStatus`
+
+### Shared hooks (`src/hooks/`)
+- `useAssociation.ts` — fetches the current user's association; used by Dashboard and Members pages
+
+### Brreg helpers (`src/lib/brreg.ts`)
+- `ORG_FORM_CODES` — `['BRL', 'ESEK', 'SA']` — allowed housing association org forms
+- `ORG_FORM_LABELS` — Norwegian display labels per code
+- `getOrgFormLabel(kode)` — safe lookup with fallback
+- Name-based searches are filtered client-side to `ORG_FORM_CODES` (API does not support org form filtering)
 
 ## Migrations
 Using Supabase CLI installed as dev dependency (`npx supabase`).

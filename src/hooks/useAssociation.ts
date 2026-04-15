@@ -22,7 +22,7 @@ export function useAssociation(): UseAssociationResult {
         .select('associations(id, navn, orgnr, org_form, poststed, status)')
         .eq('user_id', session!.user.id)
         .limit(1)
-        .single()
+        .maybeSingle()
 
       setAssociation((data as any)?.associations as Association ?? null)
       setLoading(false)

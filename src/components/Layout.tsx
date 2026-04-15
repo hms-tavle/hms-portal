@@ -1,19 +1,18 @@
 import { NavLink, useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { supabase } from '@/lib/supabase'
-
-interface LayoutProps {
-  associationName?: string
-  children: React.ReactNode
-}
+import { useWorkspace } from '@/contexts/WorkspaceContext'
 
 const NAV_ITEMS = [
   { to: '/dashboard', label: 'Oppgaver' },
   { to: '/members', label: 'Medlemmer' },
 ]
 
-export default function Layout({ associationName, children }: LayoutProps) {
+export default function Layout({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate()
+  const { workspaces, activeWorkspace, setActiveWorkspace, loading } = useWorkspace()
+
+  const showWorkspaceTabs = !loading && workspaces.length > 1
 
   async function handleSignOut() {
     await supabase.auth.signOut()
@@ -23,17 +22,33 @@ export default function Layout({ associationName, children }: LayoutProps) {
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b sticky top-0 bg-background z-10">
-        <div className="max-w-3xl mx-auto px-4 py-4 flex items-center justify-between">
-          <div>
-            <p className="text-xs text-muted-foreground uppercase tracking-wide">HMS-portal</p>
-            <h1 className="text-base font-semibold leading-tight">
-              {associationName ?? '…'}
-            </h1>
-          </div>
+        <div className="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between">
+          <p className="text-xs text-muted-foreground uppercase tracking-wide">HMS-portal</p>
           <Button variant="ghost" size="sm" onClick={handleSignOut}>
             Logg ut
           </Button>
         </div>
+
+        {/* Workspace switcher — only when user belongs to more than one workspace */}
+        {showWorkspaceTabs && (
+          <div className="max-w-3xl mx-auto px-4 flex gap-1 border-t">
+            {workspaces.map(ws => (
+              <button
+                key={ws.id}
+                onClick={() => setActiveWorkspace(ws)}
+                className={`px-3 py-2 text-sm font-medium border-b-2 transition-colors ${
+                  activeWorkspace?.id === ws.id
+                    ? 'border-foreground text-foreground'
+                    : 'border-transparent text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                {ws.displayName}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Section nav */}
         <nav className="max-w-3xl mx-auto px-4 flex gap-1 border-t">
           {NAV_ITEMS.map(item => (
             <NavLink

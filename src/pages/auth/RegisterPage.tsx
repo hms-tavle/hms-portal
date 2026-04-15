@@ -10,13 +10,18 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useState } from 'react'
 
 const schema = z.object({
+  full_name: z.string().min(2, 'Navn er påkrevd'),
   email: z.string().email('Ugyldig e-postadresse'),
-  password: z.string().min(1, 'Passord er påkrevd'),
+  password: z.string().min(8, 'Passordet må være minst 8 tegn'),
+  confirm_password: z.string(),
+}).refine(data => data.password === data.confirm_password, {
+  message: 'Passordene er ikke like',
+  path: ['confirm_password'],
 })
 
 type FormValues = z.infer<typeof schema>
 
-export default function LoginPage() {
+export default function RegisterPage() {
   const navigate = useNavigate()
   const [serverError, setServerError] = useState<string | null>(null)
 
@@ -26,14 +31,31 @@ export default function LoginPage() {
 
   async function onSubmit(values: FormValues) {
     setServerError(null)
-    const { error } = await supabase.auth.signInWithPassword({
+
+    const { data, error } = await supabase.auth.signUp({
       email: values.email,
       password: values.password,
     })
+
     if (error) {
-      setServerError('Feil e-post eller passord.')
+      setServerError(error.message)
       return
     }
+
+    if (!data.user) {
+      setServerError('Noe gikk galt. Prøv igjen.')
+      return
+    }
+
+    const { error: profileError } = await supabase
+      .from('user_profiles')
+      .insert({ id: data.user.id, full_name: values.full_name })
+
+    if (profileError) {
+      setServerError('Kunne ikke opprette profil. Prøv igjen.')
+      return
+    }
+
     navigate('/dashboard')
   }
 
@@ -41,11 +63,16 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <Card className="w-full max-w-sm">
         <CardHeader>
-          <CardTitle>Logg inn</CardTitle>
-          <CardDescription>HMS-portal for borettslag og sameier</CardDescription>
+          <CardTitle>Registrer deg</CardTitle>
+          <CardDescription>Opprett en personlig konto</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+            <div className="space-y-1">
+              <Label htmlFor="full_name">Navn</Label>
+              <Input id="full_name" type="text" autoComplete="name" {...register('full_name')} />
+              {errors.full_name && <p className="text-sm text-destructive">{errors.full_name.message}</p>}
+            </div>
             <div className="space-y-1">
               <Label htmlFor="email">E-post</Label>
               <Input id="email" type="email" autoComplete="email" {...register('email')} />
@@ -53,26 +80,25 @@ export default function LoginPage() {
             </div>
             <div className="space-y-1">
               <Label htmlFor="password">Passord</Label>
-              <Input id="password" type="password" autoComplete="current-password" {...register('password')} />
+              <Input id="password" type="password" autoComplete="new-password" {...register('password')} />
               {errors.password && <p className="text-sm text-destructive">{errors.password.message}</p>}
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="confirm_password">Bekreft passord</Label>
+              <Input id="confirm_password" type="password" autoComplete="new-password" {...register('confirm_password')} />
+              {errors.confirm_password && <p className="text-sm text-destructive">{errors.confirm_password.message}</p>}
             </div>
             {serverError && <p className="text-sm text-destructive">{serverError}</p>}
             <Button type="submit" className="w-full" disabled={isSubmitting}>
-              {isSubmitting ? 'Logger inn…' : 'Logg inn'}
+              {isSubmitting ? 'Oppretter konto…' : 'Opprett konto'}
             </Button>
           </form>
-          <div className="mt-4 space-y-2 text-center text-sm text-muted-foreground">
-            <p>
-              <Link to="/register" className="underline underline-offset-4 hover:text-primary">
-                Registrer som privatperson
-              </Link>
-            </p>
-            <p>
-              <Link to="/onboarding" className="underline underline-offset-4 hover:text-primary">
-                Registrer din boligforening
-              </Link>
-            </p>
-          </div>
+          <p className="mt-4 text-center text-sm text-muted-foreground">
+            Har du allerede konto?{' '}
+            <Link to="/login" className="underline underline-offset-4 hover:text-primary">
+              Logg inn
+            </Link>
+          </p>
         </CardContent>
       </Card>
     </div>
