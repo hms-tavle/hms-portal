@@ -84,22 +84,36 @@ A React frontend with Supabase backend for managing HMS (Health, Safety and Envi
   - Step 1: Search by name or 9-digit org number via Brønnøysundregisteret API
   - Step 2: Board members fetched from `/roller`, emails collected, password set
   - On submit: active subscription check → `signUp()` → insert association → insert members
-- Supabase migration applied: `associations` + `association_members` tables with RLS
+  - Blocks signup only if org has `status = 'active'` — multiple trial registrations allowed
+  - `crypto.randomUUID()` used client-side for association ID to avoid RLS SELECT issue after insert
+- Auth session management (`src/lib/auth.tsx`) — `AuthProvider` + `useAuth` hook via `onAuthStateChange`
+- `ProtectedRoute` component — redirects to `/login` if no session
+- Dashboard (`/dashboard`) — protected, shows task list grouped by category
+- Task list — all 28 pre-seeded legal HMS tasks with status indicators (overdue/due soon/on track/never)
+- Mark task as done — inserts completion record, UI updates immediately
+- Supabase migrations applied: `associations`, `association_members`, `task_templates`, `task_completions`
+- RLS infinite recursion fixed via `get_my_association_ids()` security definer function
 - `/signup` page removed — registration lives entirely in onboarding
+- Email confirmation disabled in Supabase (see Deferred section)
 
 ### Next up
-- Dashboard page (`/dashboard`) — gated, redirects to login if not authenticated
-- Auth session management — check session on app load, protect routes
-- Task list — pre-seeded legal HMS tasks per association
-- Mark task as done
+- GitHub Pages deployment
+- Custom tasks (user-defined, e.g. "Water plants")
+- Building feature flags (no elevator, no playground, no rental units) to hide conditional tasks
+- Task assignment to specific members
+- Trial expiry enforcement (lock access when trial ends)
+
+### Deferred
+- Email confirmation — currently OFF in Supabase dashboard (Auth → Providers → Email). Must be re-enabled before production. See memory for implementation notes.
+- SendGrid email invites for non-styreleder members
 
 ## Database Schema
 
 ### `associations`
 | column | type | notes |
 |---|---|---|
-| id | uuid PK | |
-| orgnr | text unique | from brreg |
+| id | uuid PK | generated client-side via `crypto.randomUUID()` |
+| orgnr | text | from brreg — **no unique constraint** (multiple trial registrations allowed) |
 | navn | text | from brreg |
 | org_form | text | BRL, SA, etc. |
 | poststed | text nullable | from brreg address |
@@ -117,6 +131,37 @@ A React frontend with Supabase backend for managing HMS (Health, Safety and Envi
 | full_name | text | from brreg |
 | email | text nullable | user-provided |
 | created_at | timestamptz | |
+
+### `task_templates`
+| column | type | notes |
+|---|---|---|
+| id | uuid PK | |
+| category | text | e.g. `brannvern`, `heis` |
+| category_label | text | Norwegian display name |
+| title | text | |
+| description | text nullable | |
+| legal_basis | text nullable | specific law/paragraph |
+| recurrence | text | daily \| monthly \| quarterly \| twice_yearly \| annually \| every_2_years \| every_5_years \| every_5_7_years \| every_10_years \| per_project |
+| requires_professional | boolean | |
+| is_conditional | boolean | only applies if building has certain feature |
+| sort_order | integer | |
+
+28 tasks pre-seeded across 10 categories. See `supabase/migrations/20260415113448_seed_task_templates.sql`.
+
+### `task_completions`
+| column | type | notes |
+|---|---|---|
+| id | uuid PK | |
+| association_id | uuid FK | → associations.id |
+| task_template_id | uuid FK | → task_templates.id |
+| completed_by | uuid FK nullable | → auth.users.id |
+| completed_at | timestamptz | defaults to now() |
+| notes | text nullable | |
+
+### RLS notes
+- `get_my_association_ids()` — security definer function to avoid infinite recursion in `association_members` policies
+- `task_templates` — readable by everyone (anon + authenticated)
+- `task_completions` — read/insert for authenticated members of the association only
 
 ## Migrations
 Using Supabase CLI installed as dev dependency (`npx supabase`).
