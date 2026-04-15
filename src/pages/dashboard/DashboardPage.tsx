@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/lib/auth'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { useNavigate } from 'react-router-dom'
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -36,6 +37,7 @@ interface TaskCompletion {
 }
 
 type TaskStatus = 'overdue' | 'due_soon' | 'on_track' | 'never' | 'per_project'
+type GroupKey = number | 'overdue' | 'per_project'
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -64,28 +66,57 @@ const RECURRENCE_DAYS: Record<string, number> = {
   every_10_years: 365 * 10,
 }
 
-function getDaysUntilDue(lastCompletedAt: string, recurrence: string): number | null {
-  if (recurrence === 'per_project') return null
-  const intervalDays = RECURRENCE_DAYS[recurrence]
-  if (!intervalDays) return null
-  const lastDate = new Date(lastCompletedAt)
-  const nextDue = new Date(lastDate.getTime() + intervalDays * 24 * 60 * 60 * 1000)
+function getNextDueDate(task: TaskTemplate, lastCompletion: TaskCompletion | null): Date | null {
+  if (task.recurrence === 'per_project') return null
+  const intervalDays = RECURRENCE_DAYS[task.recurrence]
+  if (!intervalDays || !lastCompletion) return null
+  const lastDate = new Date(lastCompletion.completed_at)
+  return new Date(lastDate.getTime() + intervalDays * 24 * 60 * 60 * 1000)
+}
+
+function daysUntil(date: Date): number {
   const today = new Date()
-  return Math.ceil((nextDue.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+  today.setHours(0, 0, 0, 0)
+  return Math.ceil((date.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
 }
 
 function getTaskStatus(task: TaskTemplate, lastCompletion: TaskCompletion | null): TaskStatus {
   if (task.recurrence === 'per_project') return 'per_project'
   if (!lastCompletion) return 'never'
-  const days = getDaysUntilDue(lastCompletion.completed_at, task.recurrence)
-  if (days === null) return 'per_project'
+  const nextDue = getNextDueDate(task, lastCompletion)
+  if (!nextDue) return 'never'
+  const days = daysUntil(nextDue)
   if (days < 0) return 'overdue'
   if (days <= 30) return 'due_soon'
   return 'on_track'
 }
 
+function getGroupKey(task: TaskTemplate, lastCompletion: TaskCompletion | null): GroupKey {
+  if (task.recurrence === 'per_project') return 'per_project'
+  const nextDue = getNextDueDate(task, lastCompletion)
+  if (!nextDue) return 'overdue'
+  if (daysUntil(nextDue) < 0) return 'overdue'
+  return nextDue.getFullYear()
+}
+
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString('nb-NO', { day: 'numeric', month: 'short', year: 'numeric' })
+}
+
+function formatDueDate(date: Date) {
+  return date.toLocaleDateString('nb-NO', { day: 'numeric', month: 'short', year: 'numeric' })
+}
+
+function statusText(task: TaskTemplate, lastCompletion: TaskCompletion | null): string {
+  if (task.recurrence === 'per_project') return 'Utføres ved behov'
+  if (!lastCompletion) return 'Ikke utført ennå'
+  const nextDue = getNextDueDate(task, lastCompletion)
+  if (!nextDue) return 'Ikke utført ennå'
+  const days = daysUntil(nextDue)
+  if (days < 0) return `Forfalt for ${Math.abs(days)} dager siden`
+  if (days === 0) return 'Forfaller i dag'
+  if (days <= 30) return `Forfaller om ${days} dager`
+  return `Forfaller ${formatDueDate(nextDue)}`
 }
 
 // ── Status indicator ─────────────────────────────────────────────────────────
@@ -99,14 +130,6 @@ function StatusDot({ status }: { status: TaskStatus }) {
     per_project: 'bg-muted-foreground',
   }
   return <span className={`inline-block w-2 h-2 rounded-full shrink-0 mt-1.5 ${classes[status]}`} />
-}
-
-function statusText(status: TaskStatus, days: number | null): string {
-  if (status === 'per_project') return 'Utføres ved behov'
-  if (status === 'never') return 'Ikke utført ennå'
-  if (status === 'overdue') return `Forfalt for ${Math.abs(days!)} dager siden`
-  if (status === 'due_soon') return days === 0 ? 'Forfaller i dag' : `Forfaller om ${days} dager`
-  return `Forfaller om ${days} dager`
 }
 
 // ── Component ────────────────────────────────────────────────────────────────
@@ -123,7 +146,6 @@ export default function DashboardPage() {
 
   useEffect(() => {
     async function load() {
-      // Load association
       const { data: memberData } = await supabase
         .from('association_members')
         .select('associations(id, navn, orgnr, org_form, poststed, status)')
@@ -135,12 +157,8 @@ export default function DashboardPage() {
       if (!assoc) { setLoading(false); return }
       setAssociation(assoc)
 
-      // Load tasks and completions in parallel
       const [{ data: taskData }, { data: completionData }] = await Promise.all([
-        supabase
-          .from('task_templates')
-          .select('*')
-          .order('sort_order'),
+        supabase.from('task_templates').select('*').order('sort_order'),
         supabase
           .from('task_completions')
           .select('id, task_template_id, completed_at')
@@ -155,7 +173,6 @@ export default function DashboardPage() {
     load()
   }, [session])
 
-  // Latest completion per task
   const latestCompletion = (taskId: string): TaskCompletion | null =>
     completions.find(c => c.task_template_id === taskId) ?? null
 
@@ -184,16 +201,29 @@ export default function DashboardPage() {
     navigate('/login')
   }
 
-  // Group tasks by category in sort_order
-  const categories = tasks.reduce<{ label: string; tasks: TaskTemplate[] }[]>((acc, task) => {
-    const existing = acc.find(c => c.label === task.category_label)
-    if (existing) {
-      existing.tasks.push(task)
-    } else {
-      acc.push({ label: task.category_label, tasks: [task] })
+  // Group tasks by year of next due date
+  const yearGroups = (() => {
+    const map = new Map<GroupKey, TaskTemplate[]>()
+    for (const task of tasks) {
+      const key = getGroupKey(task, latestCompletion(task.id))
+      if (!map.has(key)) map.set(key, [])
+      map.get(key)!.push(task)
     }
-    return acc
-  }, [])
+
+    const keys = Array.from(map.keys()).sort((a, b) => {
+      if (a === 'overdue') return -1
+      if (b === 'overdue') return 1
+      if (a === 'per_project') return 1
+      if (b === 'per_project') return -1
+      return (a as number) - (b as number)
+    })
+
+    return keys.map(key => ({
+      key,
+      label: key === 'overdue' ? 'Forfalt' : key === 'per_project' ? 'Ved behov' : String(key),
+      tasks: map.get(key)!,
+    }))
+  })()
 
   return (
     <div className="min-h-screen bg-background">
@@ -218,53 +248,70 @@ export default function DashboardPage() {
           <p className="text-muted-foreground">Ingen boligforening funnet for din konto.</p>
         )}
 
-        {!loading && association && categories.map(category => (
-          <section key={category.label}>
-            <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground mb-3">
-              {category.label}
-            </h2>
-            <div className="divide-y border rounded-lg">
-              {category.tasks.map(task => {
-                const last = latestCompletion(task.id)
-                const status = getTaskStatus(task, last)
-                const days = last ? getDaysUntilDue(last.completed_at, task.recurrence) : null
-                const isCompleting = completing === task.id
+        {!loading && association && (() => {
+          const currentYear = String(new Date().getFullYear())
+          const defaultTab = yearGroups.find(g => String(g.key) === currentYear)
+            ? currentYear
+            : String(yearGroups[0]?.key ?? currentYear)
 
-                return (
-                  <div key={task.id} className="flex items-start gap-3 px-4 py-3">
-                    <StatusDot status={status} />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex flex-wrap items-center gap-2 mb-0.5">
-                        <span className="text-sm font-medium">{task.title}</span>
-                        <Badge variant="outline" className="text-xs shrink-0">
-                          {RECURRENCE_LABELS[task.recurrence]}
-                        </Badge>
-                        {task.requires_professional && (
-                          <Badge variant="secondary" className="text-xs shrink-0">Fagperson</Badge>
-                        )}
-                      </div>
-                      <p className="text-xs text-muted-foreground">
-                        {statusText(status, days)}
-                        {last && (
-                          <> · Sist utført {formatDate(last.completed_at)}</>
-                        )}
-                      </p>
-                    </div>
-                    <Button
-                      size="sm"
-                      variant={status === 'on_track' ? 'outline' : 'default'}
-                      className="shrink-0"
-                      disabled={isCompleting}
-                      onClick={() => markDone(task)}
-                    >
-                      {isCompleting ? '…' : 'Utført'}
-                    </Button>
+          return (
+            <Tabs defaultValue={defaultTab}>
+              <TabsList className="flex-wrap h-auto gap-1">
+                {yearGroups.map(group => (
+                  <TabsTrigger key={String(group.key)} value={String(group.key)}>
+                    {group.label}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+
+              {yearGroups.map(group => (
+                <TabsContent key={String(group.key)} value={String(group.key)} className="mt-4">
+                  <div className="divide-y border rounded-lg">
+                    {group.tasks.map(task => {
+                      const last = latestCompletion(task.id)
+                      const status = getTaskStatus(task, last)
+                      const isCompleting = completing === task.id
+
+                      return (
+                        <div key={task.id} className="flex items-start gap-3 px-4 py-3">
+                          <StatusDot status={status} />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex flex-wrap items-center gap-2 mb-0.5">
+                              <span className="text-sm font-medium">{task.title}</span>
+                              <Badge variant="outline" className="text-xs shrink-0">
+                                {RECURRENCE_LABELS[task.recurrence]}
+                              </Badge>
+                              {task.requires_professional && (
+                                <Badge variant="secondary" className="text-xs shrink-0">Fagperson</Badge>
+                              )}
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                              {task.category_label}
+                              {' · '}
+                              {statusText(task, last)}
+                              {last && (
+                                <> · Sist utført {formatDate(last.completed_at)}</>
+                              )}
+                            </p>
+                          </div>
+                          <Button
+                            size="sm"
+                            variant={status === 'on_track' ? 'outline' : 'default'}
+                            className="shrink-0"
+                            disabled={isCompleting}
+                            onClick={() => markDone(task)}
+                          >
+                            {isCompleting ? '…' : 'Utført'}
+                          </Button>
+                        </div>
+                      )
+                    })}
                   </div>
-                )
-              })}
-            </div>
-          </section>
-        ))}
+                </TabsContent>
+              ))}
+            </Tabs>
+          )
+        })()}
       </main>
     </div>
   )
