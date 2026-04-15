@@ -2,6 +2,19 @@ import type { BrregEnhet, BrregRollerResponse } from '@/types/brreg'
 
 const BASE = 'https://data.brreg.no/enhetsregisteret/api'
 
+export const ORG_FORM_CODES = ['BRL', 'ESEK', 'SA'] as const
+export type OrgFormCode = (typeof ORG_FORM_CODES)[number]
+
+export const ORG_FORM_LABELS: Record<OrgFormCode, string> = {
+  BRL: 'Borettslag',
+  ESEK: 'Eierseksjonssameie',
+  SA: 'Samvirkeforetak',
+}
+
+export function getOrgFormLabel(kode: string): string {
+  return ORG_FORM_LABELS[kode as OrgFormCode] ?? kode
+}
+
 export async function searchAssociations(query: string): Promise<BrregEnhet[]> {
   const isOrgNumber = /^\d{9}$/.test(query.replace(/\s/g, ''))
 
@@ -11,7 +24,7 @@ export async function searchAssociations(query: string): Promise<BrregEnhet[]> {
     if (!res.ok) return []
     const enhet: BrregEnhet = await res.json()
     // Only return if it's a housing association
-    if (!['BRL', 'SA'].includes(enhet.organisasjonsform?.kode)) return []
+    if (!(ORG_FORM_CODES as readonly string[]).includes(enhet.organisasjonsform?.kode)) return []
     return [enhet]
   }
 
@@ -20,7 +33,12 @@ export async function searchAssociations(query: string): Promise<BrregEnhet[]> {
   const res = await fetch(`${BASE}/enheter?${params}`)
   if (!res.ok) return []
   const data = await res.json()
-  const enheter: BrregEnhet[] = data._embedded?.enheter ?? []
+  const all: BrregEnhet[] = data._embedded?.enheter ?? []
+
+  // The API doesn't support filtering by org form — do it client-side
+  const enheter = all.filter(e =>
+    (ORG_FORM_CODES as readonly string[]).includes(e.organisasjonsform?.kode)
+  )
 
   const normalize = (s: string) => s.toLowerCase().replace(/\s+/g, '')
   const normalizedQuery = normalize(query)

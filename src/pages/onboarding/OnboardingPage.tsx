@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { searchAssociations, fetchRoller, formatName } from '@/lib/brreg'
+import { searchAssociations, fetchRoller, formatName, getOrgFormLabel } from '@/lib/brreg'
 import type { BrregEnhet, BrregRolle } from '@/types/brreg'
 import { supabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
@@ -9,19 +9,12 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
+import { getRoleLabel } from '@/constants/roles'
 
 type Step = 'search' | 'members'
 
 interface MemberWithEmail extends BrregRolle {
   email: string
-}
-
-const ROLE_LABELS: Record<string, string> = {
-  LEDE: 'Styreleder',
-  NEST: 'Nestleder',
-  MEDL: 'Styremedlem',
-  VARA: 'Varamedlem',
-  KONT: 'Kontaktperson',
 }
 
 export default function OnboardingPage() {
@@ -205,11 +198,7 @@ export default function OnboardingPage() {
                     <div className="flex items-start justify-between gap-2">
                       <CardTitle className="text-base">{enhet.navn}</CardTitle>
                       <Badge variant="secondary">
-                        {enhet.organisasjonsform.kode === 'BRL'
-                          ? 'Borettslag'
-                          : enhet.organisasjonsform.kode === 'SA'
-                          ? 'Sameie'
-                          : enhet.organisasjonsform.beskrivelse}
+                        {getOrgFormLabel(enhet.organisasjonsform.kode)}
                       </Badge>
                     </div>
                     <CardDescription>
@@ -254,7 +243,7 @@ export default function OnboardingPage() {
           <h1 className="text-2xl font-semibold">{selected?.navn}</h1>
           <p className="text-muted-foreground mt-1">
             Org.nr: {selected?.organisasjonsnummer} ·{' '}
-            {selected?.organisasjonsform.kode === 'BRL' ? 'Borettslag' : 'Sameie'}
+            {selected && getOrgFormLabel(selected.organisasjonsform.kode)}
           </p>
         </div>
 
@@ -275,7 +264,7 @@ export default function OnboardingPage() {
             {members.map((member, index) => {
               const isStyreleder = member.type.kode === 'LEDE'
               const name = member.person ? formatName(member.person.navn) : 'Ukjent'
-              const roleLabel = ROLE_LABELS[member.type.kode] ?? member.type.beskrivelse
+              const roleLabel = getRoleLabel(member.type.kode)
               return (
                 <div key={index}>
                   {index > 0 && <Separator className="mb-4" />}

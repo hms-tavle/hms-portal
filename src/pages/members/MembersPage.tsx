@@ -1,38 +1,11 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
-import { useAuth } from '@/lib/auth'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import Layout from '@/components/Layout'
-
-// ── Types ────────────────────────────────────────────────────────────────────
-
-interface Association {
-  id: string
-  navn: string
-}
-
-interface Member {
-  id: string
-  full_name: string
-  email: string | null
-  role_code: string
-  user_id: string | null
-  invite_token: string | null
-  invite_expires_at: string | null
-}
-
-// ── Helpers ──────────────────────────────────────────────────────────────────
-
-const ROLE_LABELS: Record<string, string> = {
-  LEDE: 'Styreleder',
-  MEDL: 'Styremedlem',
-  VARA: 'Varamedlem',
-  NEST: 'Nestleder',
-  KONT: 'Kontaktperson',
-}
-
-const ROLE_ORDER = ['LEDE', 'NEST', 'MEDL', 'VARA', 'KONT']
+import { getRoleLabel, ROLE_ORDER } from '@/constants/roles'
+import type { AssociationMember } from '@/types/app'
+import { useAssociation } from '@/hooks/useAssociation'
 
 function inviteUrl(token: string): string {
   const base = window.location.href.split('#')[0]
@@ -47,31 +20,26 @@ function isExpired(expiresAt: string | null): boolean {
 // ── Component ────────────────────────────────────────────────────────────────
 
 export default function MembersPage() {
-  const { session } = useAuth()
+  const { association, loading: assocLoading } = useAssociation()
 
-  const [association, setAssociation] = useState<Association | null>(null)
-  const [members, setMembers] = useState<Member[]>([])
-  const [loading, setLoading] = useState(true)
+  const [members, setMembers] = useState<AssociationMember[]>([])
+  const [membersLoading, setMembersLoading] = useState(true)
   const [generating, setGenerating] = useState<string | null>(null)
   const [copied, setCopied] = useState<string | null>(null)
 
+  const loading = assocLoading || membersLoading
+
   useEffect(() => {
+    if (assocLoading) return
+    if (!association) { setMembersLoading(false); return }
+
+    const assocId = association.id
+
     async function load() {
-      const { data: memberData } = await supabase
-        .from('association_members')
-        .select('associations(id, navn)')
-        .eq('user_id', session!.user.id)
-        .limit(1)
-        .single()
-
-      const assoc = (memberData as any)?.associations as Association | null
-      if (!assoc) { setLoading(false); return }
-      setAssociation(assoc)
-
       const { data: membersData } = await supabase
         .from('association_members')
         .select('id, full_name, email, role_code, user_id, invite_token, invite_expires_at')
-        .eq('association_id', assoc.id)
+        .eq('association_id', assocId)
 
       const sorted = (membersData ?? []).sort((a, b) => {
         const ai = ROLE_ORDER.indexOf(a.role_code)
@@ -80,10 +48,11 @@ export default function MembersPage() {
       })
 
       setMembers(sorted)
-      setLoading(false)
+      setMembersLoading(false)
     }
+
     load()
-  }, [session])
+  }, [assocLoading, association])
 
   async function generateInvite(memberId: string) {
     setGenerating(memberId)
@@ -131,7 +100,7 @@ export default function MembersPage() {
                     <div className="flex flex-wrap items-center gap-2 mb-0.5">
                       <span className="text-sm font-medium">{member.full_name}</span>
                       <Badge variant="outline" className="text-xs shrink-0">
-                        {ROLE_LABELS[member.role_code] ?? member.role_code}
+                        {getRoleLabel(member.role_code)}
                       </Badge>
                       {!member.user_id && (
                         <Badge variant="secondary" className="text-xs shrink-0">Ikke aktiv</Badge>

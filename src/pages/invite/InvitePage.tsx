@@ -4,19 +4,12 @@ import { supabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { getRoleLabel } from '@/constants/roles'
 
 interface MemberInfo {
   id: string
   full_name: string
   role_code: string
-}
-
-const ROLE_LABELS: Record<string, string> = {
-  LEDE: 'Styreleder',
-  MEDL: 'Styremedlem',
-  VARA: 'Varamedlem',
-  NEST: 'Nestleder',
-  KONT: 'Kontaktperson',
 }
 
 export default function InvitePage() {
@@ -116,7 +109,7 @@ export default function InvitePage() {
           <p className="text-sm text-muted-foreground mt-1">
             Du er invitert som{' '}
             <span className="font-medium text-foreground">
-              {ROLE_LABELS[member!.role_code] ?? member!.role_code}
+              {getRoleLabel(member!.role_code)}
             </span>{' '}
             — {member!.full_name}
           </p>

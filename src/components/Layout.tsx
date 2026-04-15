@@ -1,7 +1,6 @@
-import { NavLink } from 'react-router-dom'
+import { NavLink, useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { supabase } from '@/lib/supabase'
-import { useNavigate } from 'react-router-dom'
 
 interface LayoutProps {
   associationName?: string
