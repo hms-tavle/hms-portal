@@ -1,0 +1,1 @@
+alter table public.associations drop constraint associations_orgnr_key;

@@ -72,6 +72,70 @@ A React frontend with Supabase backend for managing HMS (Health, Safety and Envi
 - `trial_started_at` — timestamp when trial began
 - `status` — `trial | active | expired`
 
+## Implementation Status
+
+### Done
+- Vite + React + TypeScript scaffolded
+- shadcn/ui + Tailwind CSS (v4) configured
+- Supabase client wired via `VITE_SUPABASE_URL` + `VITE_SUPABASE_PUBLISHABLE_KEY` in `.env.local`
+- React Router with `HashRouter` (required for GitHub Pages static hosting)
+- Login page (`/login`) — email + password, links to onboarding
+- Onboarding flow (`/onboarding`):
+  - Step 1: Search by name or 9-digit org number via Brønnøysundregisteret API
+  - Step 2: Board members fetched from `/roller`, emails collected, password set
+  - On submit: active subscription check → `signUp()` → insert association → insert members
+- Supabase migration applied: `associations` + `association_members` tables with RLS
+- `/signup` page removed — registration lives entirely in onboarding
+
+### Next up
+- Dashboard page (`/dashboard`) — gated, redirects to login if not authenticated
+- Auth session management — check session on app load, protect routes
+- Task list — pre-seeded legal HMS tasks per association
+- Mark task as done
+
+## Database Schema
+
+### `associations`
+| column | type | notes |
+|---|---|---|
+| id | uuid PK | |
+| orgnr | text unique | from brreg |
+| navn | text | from brreg |
+| org_form | text | BRL, SA, etc. |
+| poststed | text nullable | from brreg address |
+| status | text | trial \| active \| expired |
+| trial_started_at | timestamptz | defaults to now() |
+| created_at | timestamptz | |
+
+### `association_members`
+| column | type | notes |
+|---|---|---|
+| id | uuid PK | |
+| association_id | uuid FK | → associations.id |
+| user_id | uuid FK nullable | → auth.users.id — null until invite accepted |
+| role_code | text | LEDE, MEDL, VARA, NEST, KONT |
+| full_name | text | from brreg |
+| email | text nullable | user-provided |
+| created_at | timestamptz | |
+
+## Migrations
+Using Supabase CLI installed as dev dependency (`npx supabase`).
+- `npm run db:migration <name>` — create new migration file in `supabase/migrations/`
+- `npm run db:push` — apply pending migrations to remote Supabase project
+- Must run `npx supabase login` and `npx supabase link --project-ref rooygqbwulreyrwfvsyf` first
+
+## Routing
+- `HashRouter` used for GitHub Pages compatibility (no server-side routing)
+- Routes: `/login`, `/onboarding`, `/dashboard` (next)
+- Unauthenticated users redirect to `/login`
+
+## Brønnøysundregisteret API Notes
+- Base URL: `https://data.brreg.no/enhetsregisteret/api`
+- Search: `GET /enheter?navn=<query>&size=20` — `organisasjonsform.kode` filter not supported as query param, filter client-side instead
+- Direct lookup: `GET /enheter/<orgnr>` — works for 9-digit org numbers
+- Board members: `GET /enheter/<orgnr>/roller`
+- Exact match logic: if any result's name matches query (normalised lowercase, no whitespace), return only that result; otherwise return all
+
 ## Norwegian Legal Requirements
 
 Full task list with legal references: `docs/legal-requirements.md`
