@@ -428,7 +428,7 @@ export default function DashboardPage() {
         completed_by: session!.user.id,
         completed_at: completedAt,
       })
-      .select('id, task_template_id, completed_at')
+      .select('id, task_template_id, completed_at, completed_by')
       .single()
 
     if (!error && data) {
