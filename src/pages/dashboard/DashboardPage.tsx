@@ -4,6 +4,7 @@ import { useAuth } from '@/lib/auth'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
+import { Select, SelectTrigger, SelectValue, SelectPopup, SelectItem } from '@/components/ui/select'
 import { ChevronDown, ChevronUp, X } from 'lucide-react'
 import Layout from '@/components/Layout'
 
@@ -39,7 +40,13 @@ interface TaskCompletion {
 }
 
 interface AssociationMember {
+  id: string
   user_id: string | null
+  full_name: string
+}
+
+interface MemberOption {
+  id: string
   full_name: string
 }
 
@@ -208,16 +215,22 @@ function TaskRow({
   task,
   allCompletions,
   memberNames,
+  memberList,
+  assignedMemberId,
   currentUserId,
   onMarkDone,
   onDeleteCompletion,
+  onAssign,
 }: {
   task: TaskTemplate
   allCompletions: TaskCompletion[]
   memberNames: Map<string, string>
+  memberList: MemberOption[]
+  assignedMemberId: string | null
   currentUserId: string
   onMarkDone: (task: TaskTemplate, date: string) => Promise<void>
   onDeleteCompletion: (id: string) => Promise<void>
+  onAssign: (taskTemplateId: string, memberId: string | null) => Promise<void>
 }) {
   const [expanded, setExpanded] = useState(false)
   const [marking, setMarking] = useState(false)
@@ -279,6 +292,22 @@ function TaskRow({
               <span className="text-destructive"> · ⚠ {missedCount} ikke dokumentert</span>
             )}
           </p>
+          <div className="flex items-center gap-0.5 mt-0.5">
+            <span className="text-xs text-muted-foreground">Ansvarlig:</span>
+            <Select value={assignedMemberId ?? ''} onValueChange={(v: string | null) => onAssign(task.id, v || null)}>
+              <SelectTrigger>
+                <SelectValue>
+                  {(v: string | null) => v ? (memberList.find(m => m.id === v)?.full_name ?? v) : 'Ingen'}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectPopup>
+                <SelectItem value="">Ingen</SelectItem>
+                {memberList.map(m => (
+                  <SelectItem key={m.id} value={m.id}>{m.full_name}</SelectItem>
+                ))}
+              </SelectPopup>
+            </Select>
+          </div>
         </div>
 
         <div className="flex items-center gap-1 shrink-0">
@@ -374,6 +403,8 @@ export default function DashboardPage() {
   const [tasks, setTasks] = useState<TaskTemplate[]>([])
   const [completions, setCompletions] = useState<TaskCompletion[]>([])
   const [memberNames, setMemberNames] = useState<Map<string, string>>(new Map())
+  const [memberList, setMemberList] = useState<MemberOption[]>([])
+  const [assignments, setAssignments] = useState<Map<string, string>>(new Map())
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -389,7 +420,7 @@ export default function DashboardPage() {
       if (!assoc) { setLoading(false); return }
       setAssociation(assoc)
 
-      const [{ data: taskData }, { data: completionData }, { data: membersData }] = await Promise.all([
+      const [{ data: taskData }, { data: completionData }, { data: membersData }, { data: assignmentData }] = await Promise.all([
         supabase.from('task_templates').select('*').order('sort_order'),
         supabase
           .from('task_completions')
@@ -398,7 +429,11 @@ export default function DashboardPage() {
           .order('completed_at', { ascending: false }),
         supabase
           .from('association_members')
-          .select('user_id, full_name')
+          .select('id, user_id, full_name')
+          .eq('association_id', assoc.id),
+        supabase
+          .from('task_assignments')
+          .select('task_template_id, assigned_to')
           .eq('association_id', assoc.id),
       ])
 
@@ -406,10 +441,19 @@ export default function DashboardPage() {
       setCompletions(completionData ?? [])
 
       const names = new Map<string, string>()
+      const list: MemberOption[] = []
       for (const m of (membersData ?? []) as AssociationMember[]) {
         if (m.user_id) names.set(m.user_id, m.full_name)
+        list.push({ id: m.id, full_name: m.full_name })
       }
       setMemberNames(names)
+      setMemberList(list)
+
+      const asgn = new Map<string, string>()
+      for (const a of (assignmentData ?? []) as { task_template_id: string; assigned_to: string }[]) {
+        asgn.set(a.task_template_id, a.assigned_to)
+      }
+      setAssignments(asgn)
       setLoading(false)
     }
     load()
@@ -444,6 +488,28 @@ export default function DashboardPage() {
 
     if (!error) {
       setCompletions(prev => prev.filter(c => c.id !== id))
+    }
+  }
+
+  async function assignTask(taskTemplateId: string, memberId: string | null) {
+    if (!association) return
+    if (!memberId) {
+      await supabase
+        .from('task_assignments')
+        .delete()
+        .eq('association_id', association.id)
+        .eq('task_template_id', taskTemplateId)
+      setAssignments(prev => { const next = new Map(prev); next.delete(taskTemplateId); return next })
+    } else {
+      const { error } = await supabase
+        .from('task_assignments')
+        .upsert(
+          { association_id: association.id, task_template_id: taskTemplateId, assigned_to: memberId },
+          { onConflict: 'association_id,task_template_id' }
+        )
+      if (!error) {
+        setAssignments(prev => new Map(prev).set(taskTemplateId, memberId))
+      }
     }
   }
 
@@ -504,9 +570,12 @@ export default function DashboardPage() {
                         task={task}
                         allCompletions={completions}
                         memberNames={memberNames}
+                        memberList={memberList}
+                        assignedMemberId={assignments.get(task.id) ?? null}
                         currentUserId={session!.user.id}
                         onMarkDone={markDone}
                         onDeleteCompletion={deleteCompletion}
+                        onAssign={assignTask}
                       />
                     ))}
                   </div>
