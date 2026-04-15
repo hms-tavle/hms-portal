@@ -153,6 +153,55 @@ function StatusDot({ status }: { status: TaskStatus }) {
   return <span className={`inline-block w-2 h-2 rounded-full shrink-0 ${classes[status]}`} />
 }
 
+// ── Compliance timeline ───────────────────────────────────────────────────────
+
+type TimelineEntry =
+  | { type: 'actual'; completion: TaskCompletion }
+  | { type: 'missed'; estimatedDate: Date }
+
+function buildComplianceTimeline(
+  completions: TaskCompletion[],
+  task: TaskTemplate
+): TimelineEntry[] {
+  const intervalDays = RECURRENCE_DAYS[task.recurrence]
+  if (!intervalDays || completions.length === 0) {
+    return completions.map(c => ({ type: 'actual', completion: c }))
+  }
+
+  const intervalMs = intervalDays * 24 * 60 * 60 * 1000
+  const sorted = [...completions].sort(
+    (a, b) => new Date(a.completed_at).getTime() - new Date(b.completed_at).getTime()
+  )
+  const today = new Date()
+
+  const entries: TimelineEntry[] = sorted.map(c => ({ type: 'actual', completion: c }))
+
+  // Gaps between consecutive completions
+  for (let i = 0; i < sorted.length - 1; i++) {
+    const from = new Date(sorted[i].completed_at)
+    const to = new Date(sorted[i + 1].completed_at)
+    const gapMs = to.getTime() - from.getTime()
+    const missedCount = Math.floor(gapMs / intervalMs) - 1
+    for (let j = 1; j <= missedCount; j++) {
+      entries.push({ type: 'missed', estimatedDate: new Date(from.getTime() + j * intervalMs) })
+    }
+  }
+
+  // Gap from last completion to today
+  const last = new Date(sorted[sorted.length - 1].completed_at)
+  const gapToNowMs = today.getTime() - last.getTime()
+  const overdueCount = Math.floor(gapToNowMs / intervalMs)
+  for (let j = 1; j <= overdueCount; j++) {
+    entries.push({ type: 'missed', estimatedDate: new Date(last.getTime() + j * intervalMs) })
+  }
+
+  return entries.sort((a, b) => {
+    const aDate = a.type === 'actual' ? new Date(a.completion.completed_at) : a.estimatedDate
+    const bDate = b.type === 'actual' ? new Date(b.completion.completed_at) : b.estimatedDate
+    return bDate.getTime() - aDate.getTime()
+  })
+}
+
 // ── Task row ─────────────────────────────────────────────────────────────────
 
 function TaskRow({
@@ -190,6 +239,9 @@ function TaskRow({
   const perYear = RECURRENCE_PER_YEAR[task.recurrence] ?? 0
   const showCount = perYear > 1
 
+  const timeline = buildComplianceTimeline(taskCompletions, task)
+  const missedCount = timeline.filter(e => e.type === 'missed').length
+
   async function handleSubmit() {
     setSubmitting(true)
     await onMarkDone(task, dateInput)
@@ -223,6 +275,9 @@ function TaskRow({
             {' · '}
             {statusText(task, lastCompletion)}
             {showCount && ` · ${yearCount}/${perYear} utført i ${currentYear}`}
+            {missedCount > 0 && (
+              <span className="text-destructive"> · ⚠ {missedCount} ikke dokumentert</span>
+            )}
           </p>
         </div>
 
@@ -268,29 +323,41 @@ function TaskRow({
 
       {expanded && (
         <div className="mt-2 ml-5 border-l pl-3 space-y-1.5">
-          {taskCompletions.length === 0 ? (
+          {timeline.length === 0 ? (
             <p className="text-xs text-muted-foreground italic">Ingen fullføringer registrert.</p>
           ) : (
-            taskCompletions.map(c => (
-              <div key={c.id} className="flex items-center justify-between gap-4">
-                <span className="text-xs text-muted-foreground">
-                  {formatDate(c.completed_at)}
-                  {c.completed_by && memberNames.get(c.completed_by) && (
-                    <> · {memberNames.get(c.completed_by)}</>
+            timeline.map((entry, i) => {
+              if (entry.type === 'missed') {
+                return (
+                  <div key={`missed-${i}`} className="flex items-center gap-2">
+                    <span className="text-xs text-destructive">
+                      ~ {formatDate(entry.estimatedDate.toISOString())} · Ikke dokumentert
+                    </span>
+                  </div>
+                )
+              }
+              const c = entry.completion
+              return (
+                <div key={c.id} className="flex items-center justify-between gap-4">
+                  <span className="text-xs text-muted-foreground">
+                    {formatDate(c.completed_at)}
+                    {c.completed_by && memberNames.get(c.completed_by) && (
+                      <> · {memberNames.get(c.completed_by)}</>
+                    )}
+                  </span>
+                  {c.completed_by === currentUserId && (
+                    <button
+                      className="text-muted-foreground hover:text-destructive disabled:opacity-40"
+                      disabled={deleting === c.id}
+                      onClick={() => handleDelete(c.id)}
+                      aria-label="Slett fullføring"
+                    >
+                      <X size={12} />
+                    </button>
                   )}
-                </span>
-                {c.completed_by === currentUserId && (
-                  <button
-                    className="text-muted-foreground hover:text-destructive disabled:opacity-40"
-                    disabled={deleting === c.id}
-                    onClick={() => handleDelete(c.id)}
-                    aria-label="Slett fullføring"
-                  >
-                    <X size={12} />
-                  </button>
-                )}
-              </div>
-            ))
+                </div>
+              )
+            })
           )}
         </div>
       )}
