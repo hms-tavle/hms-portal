@@ -124,8 +124,10 @@ A React frontend with Supabase backend for managing HMS (Health, Safety and Envi
   - `task_completions.association_id` made nullable to support personal workspace completions
   - Personal workspace now shows custom tasks instead of empty state
   - Assignments work for custom tasks in associations (same `task_assignments` table)
-  - `CustomTaskModal` — title (required), recurrence (required), category label + description (optional)
-  - Migration: `20260419120000_add_custom_tasks.sql`
+  - `CustomTaskModal` — title (required), recurrence (required), first deadline date, category label + description (optional)
+  - `first_due_at` on `task_templates` — sets initial due date for custom tasks; defaults to today + interval; hidden for `per_project`
+  - Tasks within each year-tab sorted by next due date ascending
+  - Migrations: `20260419120000_add_custom_tasks.sql`, `20260419130000_add_first_due_at.sql`
 
 ### Next up
 - **Email verification** — re-enable after members sign up via invite link
@@ -180,6 +182,7 @@ A React frontend with Supabase backend for managing HMS (Health, Safety and Envi
 | association_id | uuid FK nullable | → associations.id — set for association custom tasks, null for seeded/personal |
 | created_by | uuid FK nullable | → auth.users.id — null = seeded (global); set = custom task owner |
 | created_at | timestamptz nullable | set on insert for custom tasks |
+| first_due_at | timestamptz nullable | initial deadline for custom tasks; drives grouping/status when no completion exists |
 
 28 seeded tasks across 10 categories (`created_by IS NULL`). See `supabase/migrations/20260415113448_seed_task_templates.sql`.
 
