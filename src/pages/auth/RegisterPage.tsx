@@ -9,11 +9,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Link, useNavigate } from 'react-router-dom'
 import { useState } from 'react'
 import { useWorkspace } from '@/contexts/WorkspaceContext'
+import { emailField, passwordField } from '@/lib/validation'
 
 const schema = z.object({
   full_name: z.string().min(2, 'Navn er påkrevd'),
-  email: z.string().email('Ugyldig e-postadresse'),
-  password: z.string().min(8, 'Passordet må være minst 8 tegn'),
+  email: emailField,
+  password: passwordField,
   confirm_password: z.string(),
 }).refine(data => data.password === data.confirm_password, {
   message: 'Passordene er ikke like',

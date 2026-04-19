@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { X } from 'lucide-react'
 import Layout from '@/components/Layout'
 import { getRoleLabel, ROLE_ORDER } from '@/constants/roles'
+import { INVITE_EXPIRY_DAYS } from '@/constants/config'
 import type { AssociationMember } from '@/types/app'
 import { useWorkspace } from '@/contexts/WorkspaceContext'
 
@@ -60,7 +61,7 @@ export default function MembersPage() {
   async function generateInvite(memberId: string) {
     setGenerating(memberId)
     const token = crypto.randomUUID()
-    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+    const expiresAt = new Date(Date.now() + INVITE_EXPIRY_DAYS * 24 * 60 * 60 * 1000).toISOString()
 
     const { error } = await supabase
       .from('association_members')

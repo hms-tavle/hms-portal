@@ -8,10 +8,11 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Link, useNavigate } from 'react-router-dom'
 import { useState } from 'react'
+import { emailField, passwordRequiredField } from '@/lib/validation'
 
 const schema = z.object({
-  email: z.string().email('Ugyldig e-postadresse'),
-  password: z.string().min(1, 'Passord er påkrevd'),
+  email: emailField,
+  password: passwordRequiredField,
 })
 
 type FormValues = z.infer<typeof schema>
