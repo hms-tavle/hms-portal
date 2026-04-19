@@ -68,7 +68,7 @@ function formatDate(iso: string) {
 
 function statusText(task: TaskTemplate, lastCompletion: TaskCompletion | null): string {
   if (task.recurrence === 'per_project') return 'Utføres ved behov'
-  if (!lastCompletion) return 'Ikke utført ennå'
+  if (!lastCompletion && !task.first_due_at) return 'Ikke utført ennå'
   const nextDue = getNextDueDate(task, lastCompletion)
   if (!nextDue) return 'Ikke utført ennå'
   const days = daysUntil(nextDue)
@@ -690,7 +690,14 @@ export default function DashboardPage() {
     return keys.map(key => ({
       key,
       label: key === 'overdue' ? 'Forfalt' : key === 'per_project' ? 'Ved behov' : String(key),
-      tasks: map.get(key)!,
+      tasks: map.get(key)!.sort((a, b) => {
+        const aDate = getNextDueDate(a, latestCompletion(a.id))
+        const bDate = getNextDueDate(b, latestCompletion(b.id))
+        if (!aDate && !bDate) return 0
+        if (!aDate) return 1
+        if (!bDate) return -1
+        return aDate.getTime() - bDate.getTime()
+      }),
     }))
   })()
 
