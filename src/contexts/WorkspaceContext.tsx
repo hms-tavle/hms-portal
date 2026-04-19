@@ -3,6 +3,10 @@ import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/lib/auth'
 import type { Association } from '@/types/app'
 
+interface MembershipRow {
+  associations: Association | null
+}
+
 // ── Workspace types ───────────────────────────────────────────────────────────
 
 export type PersonalWorkspace = {
@@ -64,8 +68,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       .select('associations(id, navn, orgnr, org_form, poststed, status)')
       .eq('user_id', userId)
 
-    for (const m of memberships ?? []) {
-      const assoc = (m as any).associations as Association | null
+    for (const m of (memberships ?? []) as MembershipRow[]) {
+      const assoc = m.associations
       // Deduplicate: a user may have multiple member rows for the same association
       if (assoc && !result.some(w => w.id === assoc.id)) {
         result.push({

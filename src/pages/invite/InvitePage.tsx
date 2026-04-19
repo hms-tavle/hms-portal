@@ -7,6 +7,13 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { getRoleLabel } from '@/constants/roles'
+import { PASSWORD_MIN_LENGTH } from '@/constants/config'
+
+interface InviteRow {
+  full_name: string
+  role_code: string
+  associations: { navn: string } | null
+}
 
 interface MemberInfo {
   full_name: string
@@ -52,10 +59,11 @@ export default function InvitePage() {
       if (error || !data) {
         setTokenError('Invitasjonslenken er ugyldig eller har utløpt.')
       } else {
+        const row = data as unknown as InviteRow
         setMember({
-          full_name: data.full_name,
-          role_code: data.role_code,
-          associationName: (data as any).associations?.navn ?? '',
+          full_name: row.full_name,
+          role_code: row.role_code,
+          associationName: row.associations?.navn ?? '',
         })
       }
       setLoadingToken(false)
@@ -200,7 +208,7 @@ export default function InvitePage() {
                   value={password}
                   onChange={e => setPassword(e.target.value)}
                   required
-                  minLength={authMode === 'signup' ? 8 : 1}
+                  minLength={authMode === 'signup' ? PASSWORD_MIN_LENGTH : 1}
                 />
               </div>
 
