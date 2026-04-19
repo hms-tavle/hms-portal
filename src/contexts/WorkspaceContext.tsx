@@ -68,7 +68,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       .select('associations(id, navn, orgnr, org_form, poststed, status)')
       .eq('user_id', userId)
 
-    for (const m of (memberships ?? []) as MembershipRow[]) {
+    for (const m of (memberships ?? []) as unknown as MembershipRow[]) {
       const assoc = m.associations
       // Deduplicate: a user may have multiple member rows for the same association
       if (assoc && !result.some(w => w.id === assoc.id)) {

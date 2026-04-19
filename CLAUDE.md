@@ -130,10 +130,13 @@ A React frontend with Supabase backend for managing HMS (Health, Safety and Envi
   - Migrations: `20260419120000_add_custom_tasks.sql`, `20260419130000_add_first_due_at.sql`
 
 ### Next up
+- **Edit member info** — edit name, email, role on the members page
+- **PWA** — manifest, service worker, installable on mobile/desktop
 - **Email verification** — re-enable after members sign up via invite link
 - **Deadline reminder emails** — Resend + Supabase Edge Functions + pg_cron (daily check, send reminders for tasks due within 14 days)
 - **Feature flags** — hide conditional tasks (heis, lekeplass, radon) if building lacks those features
 - **Trial expiry enforcement** — lock access when trial ends
+- **External actors** — contractors/inspectors added to association, only see assigned tasks
 
 ### Deferred
 - Email confirmation — currently OFF in Supabase dashboard (Auth → Providers → Email). Must be re-enabled before production.
@@ -230,27 +233,31 @@ Created on: individual signup (`/register`), association onboarding (`/onboardin
 ## Codebase Structure
 
 ### Shared constants (`src/constants/`)
-- `roles.ts` — `ROLE_CODES`, `ROLE_LABELS`, `ROLE_ORDER`, `getRoleLabel(code)` — role codes and Norwegian labels
+- `roles.ts` — `ROLE_CODES`, `ROLE_LABELS`, `ROLE_ORDER`, `getRoleLabel(code)`
 - `recurrence.ts` — `RECURRENCE_CODES`, `RECURRENCE_LABELS`, `RECURRENCE_DAYS`, `RECURRENCE_PER_YEAR`, plus `getRecurrenceLabel/Days/PerYear()` helpers
+- `config.ts` — `INVITE_EXPIRY_DAYS = 7`, `PASSWORD_MIN_LENGTH = 8`
+
+### Shared lib (`src/lib/`)
+- `validation.ts` — shared zod fields: `emailField`, `passwordField`, `passwordRequiredField`
+- `taskUtils.ts` — pure task helpers + types: `getNextDueDate`, `getTaskStatus`, `getGroupKey`, `statusText`, `buildComplianceTimeline`, `defaultFirstDue`, `formatDate`, `todayStr`; types: `TaskStatus`, `GroupKey`, `TimelineEntry`
+- `brreg.ts` — `ORG_FORM_CODES ['BRL', 'ESEK', 'SA']`, `getOrgFormLabel(kode)`; name searches filtered client-side
+- `auth.tsx` — `AuthProvider`, `useAuth`
+- `supabase.ts` — Supabase client
 
 ### Shared types (`src/types/`)
 - `brreg.ts` — Brønnøysundregisteret API response types
 - `app.ts` — `Association`, `AssociationMember`, `TaskTemplate`, `TaskCompletion`, `SubscriptionStatus`
 
 ### Workspace context (`src/contexts/WorkspaceContext.tsx`)
-- `WorkspaceProvider` — fetches `user_profiles` (personal workspace) + `association_members` (association workspaces); deduplicates by association ID; defaults to first association
+- `WorkspaceProvider` — fetches `user_profiles` (personal) + `association_members` (associations); deduplicates by association ID
 - `useWorkspace()` — returns `{ workspaces, activeWorkspace, setActiveWorkspace, refreshWorkspaces, loading }`
-- `Workspace` union type: `PersonalWorkspace { kind:'personal', id, displayName }` | `AssociationWorkspace { kind:'association', id, displayName, association }`
-- `refreshWorkspaces()` — manually re-fetches; called after `claim_invite()` to pick up new association without a page reload
+- `Workspace` union: `PersonalWorkspace { kind:'personal', id, displayName }` | `AssociationWorkspace { kind:'association', id, displayName, association }`
+- `refreshWorkspaces()` — called after `claim_invite()` to pick up new association without page reload
 
-### Shared hooks (`src/hooks/`)
-- `useAssociation.ts` — legacy hook, still present but superseded by `useWorkspace()` from WorkspaceContext
-
-### Brreg helpers (`src/lib/brreg.ts`)
-- `ORG_FORM_CODES` — `['BRL', 'ESEK', 'SA']` — allowed housing association org forms
-- `ORG_FORM_LABELS` — Norwegian display labels per code
-- `getOrgFormLabel(kode)` — safe lookup with fallback
-- Name-based searches are filtered client-side to `ORG_FORM_CODES` (API does not support org form filtering)
+### Dashboard (`src/pages/dashboard/`)
+- `DashboardPage.tsx` — data loading + tab layout (~160 lines)
+- `TaskRow.tsx` — `TaskRow` + `StatusDot` + exported `MemberOption` interface
+- `CustomTaskModal.tsx` — `CustomTaskModal` + exported `CustomTaskData` interface
 
 ## Migrations
 Using Supabase CLI installed as dev dependency (`npx supabase`).
