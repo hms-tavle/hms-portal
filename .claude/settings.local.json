@@ -4,7 +4,10 @@
       "WebSearch",
       "WebFetch(domain:www.styret.com)",
       "Bash(npm install *)",
-      "Bash(npx shadcn@latest *)"
+      "Bash(npx shadcn@latest *)",
+      "mcp__plugin_context-mode_context-mode__ctx_fetch_and_index",
+      "mcp__plugin_context-mode_context-mode__ctx_index",
+      "Bash(rtk tsc *)"
     ]
   }
 }

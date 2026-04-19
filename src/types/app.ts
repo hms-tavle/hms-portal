@@ -24,7 +24,7 @@ export interface AssociationMember {
 
 export interface TaskTemplate {
   id: string
-  category: string
+  category: string | null
   category_label: string
   title: string
   description: string | null
@@ -33,6 +33,8 @@ export interface TaskTemplate {
   requires_professional: boolean
   is_conditional: boolean
   sort_order: number
+  association_id: string | null
+  created_by: string | null
 }
 
 export interface TaskCompletion {
