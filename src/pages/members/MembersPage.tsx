@@ -118,7 +118,7 @@ export default function MembersPage() {
                     )}
                   </div>
 
-                  {!member.user_id && (
+                  {!member.user_id && !member.email && (
                     <div className="shrink-0">
                       {isShowingLink ? (
                         <Button size="sm" variant="outline" onClick={() => copyInvite(member.id, member.invite_token!)}>
@@ -133,7 +133,7 @@ export default function MembersPage() {
                   )}
                 </div>
 
-                {isShowingLink && member.invite_token && (
+                {isShowingLink && !member.email && member.invite_token && (
                   <div className="mt-2 flex items-start gap-2">
                     <p className="flex-1 text-xs text-muted-foreground break-all font-mono bg-muted rounded px-2 py-1">
                       {inviteUrl(member.invite_token)}
