@@ -31,7 +31,8 @@ function todayStr(): string {
 function getNextDueDate(task: TaskTemplate, lastCompletion: TaskCompletion | null): Date | null {
   if (task.recurrence === 'per_project') return null
   const intervalDays = getRecurrenceDays(task.recurrence)
-  if (!intervalDays || !lastCompletion) return null
+  if (!intervalDays) return null
+  if (!lastCompletion) return task.first_due_at ? new Date(task.first_due_at) : null
   const lastDate = new Date(lastCompletion.completed_at)
   return new Date(lastDate.getTime() + intervalDays * 24 * 60 * 60 * 1000)
 }
@@ -44,7 +45,7 @@ function daysUntil(date: Date): number {
 
 function getTaskStatus(task: TaskTemplate, lastCompletion: TaskCompletion | null): TaskStatus {
   if (task.recurrence === 'per_project') return 'per_project'
-  if (!lastCompletion) return 'never'
+  if (!lastCompletion && !task.first_due_at) return 'never'
   const nextDue = getNextDueDate(task, lastCompletion)
   if (!nextDue) return 'never'
   const days = daysUntil(nextDue)
@@ -139,20 +140,38 @@ function buildComplianceTimeline(
 
 // ── Custom task modal ─────────────────────────────────────────────────────────
 
+function defaultFirstDue(recurrence: RecurrenceCode): string {
+  if (recurrence === 'per_project') return ''
+  const days = getRecurrenceDays(recurrence) ?? 365
+  const date = new Date()
+  date.setDate(date.getDate() + days)
+  return date.toISOString().split('T')[0]
+}
+
 function CustomTaskModal({
   initial,
   onSave,
   onClose,
 }: {
   initial?: TaskTemplate
-  onSave: (data: { title: string; description: string; recurrence: RecurrenceCode; category_label: string }) => Promise<void>
+  onSave: (data: { title: string; description: string; recurrence: RecurrenceCode; category_label: string; first_due_at: string | null }) => Promise<void>
   onClose: () => void
 }) {
   const [title, setTitle] = useState(initial?.title ?? '')
   const [description, setDescription] = useState(initial?.description ?? '')
   const [recurrence, setRecurrence] = useState<RecurrenceCode>(initial?.recurrence ?? 'annually')
   const [categoryLabel, setCategoryLabel] = useState(initial?.category_label === 'Egendefinert' ? '' : (initial?.category_label ?? ''))
+  const [firstDue, setFirstDue] = useState(
+    initial?.first_due_at
+      ? initial.first_due_at.split('T')[0]
+      : defaultFirstDue(initial?.recurrence ?? 'annually')
+  )
   const [submitting, setSubmitting] = useState(false)
+
+  function handleRecurrenceChange(code: RecurrenceCode) {
+    setRecurrence(code)
+    setFirstDue(defaultFirstDue(code))
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -163,6 +182,7 @@ function CustomTaskModal({
       description: description.trim(),
       recurrence,
       category_label: categoryLabel.trim() || 'Egendefinert',
+      first_due_at: recurrence !== 'per_project' && firstDue ? firstDue : null,
     })
     setSubmitting(false)
   }
@@ -193,13 +213,24 @@ function CustomTaskModal({
             <select
               className="w-full border rounded px-3 py-2 text-sm bg-background"
               value={recurrence}
-              onChange={e => setRecurrence(e.target.value as RecurrenceCode)}
+              onChange={e => handleRecurrenceChange(e.target.value as RecurrenceCode)}
             >
               {RECURRENCE_CODES.map(code => (
                 <option key={code} value={code}>{getRecurrenceLabel(code)}</option>
               ))}
             </select>
           </div>
+          {recurrence !== 'per_project' && (
+            <div>
+              <label className="text-xs font-medium text-muted-foreground block mb-1">Første frist</label>
+              <input
+                type="date"
+                className="w-full border rounded px-3 py-2 text-sm bg-background"
+                value={firstDue}
+                onChange={e => setFirstDue(e.target.value)}
+              />
+            </div>
+          )}
           <div>
             <label className="text-xs font-medium text-muted-foreground block mb-1">Kategori</label>
             <input
@@ -590,7 +621,9 @@ export default function DashboardPage() {
     description: string
     recurrence: RecurrenceCode
     category_label: string
+    first_due_at: string | null
   }) {
+    const firstDueAt = data.first_due_at ? new Date(data.first_due_at + 'T12:00:00').toISOString() : null
     if (editingTask) {
       const { data: updated, error } = await supabase
         .from('task_templates')
@@ -599,6 +632,7 @@ export default function DashboardPage() {
           description: data.description || null,
           recurrence: data.recurrence,
           category_label: data.category_label,
+          first_due_at: firstDueAt,
         })
         .eq('id', editingTask.id)
         .select('*')
@@ -614,6 +648,7 @@ export default function DashboardPage() {
           description: data.description || null,
           recurrence: data.recurrence,
           category_label: data.category_label,
+          first_due_at: firstDueAt,
           association_id: association?.id ?? null,
           created_by: session!.user.id,
         })

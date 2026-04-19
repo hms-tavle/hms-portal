@@ -117,9 +117,17 @@ A React frontend with Supabase backend for managing HMS (Health, Safety and Envi
 - GitHub Pages deployed at `https://hms-tavle.github.io/hms-portal/` via GitHub Actions
 - Task assignment — inline "Ansvarlig" dropdown per task row; stored in `task_assignments` table
 - Codebase refactored: shared constants, types, and hooks extracted (see Codebase Structure below)
+- Custom tasks — user-defined recurring tasks for both personal and association workspaces
+  - Merged into `task_templates` table (`created_by` + `association_id` columns distinguish custom from seeded)
+  - Seeded tasks: `created_by IS NULL` (global, public). Custom tasks: `created_by = owner`
+  - Any member can create; only creator can edit/delete (pencil/trash icons on row)
+  - `task_completions.association_id` made nullable to support personal workspace completions
+  - Personal workspace now shows custom tasks instead of empty state
+  - Assignments work for custom tasks in associations (same `task_assignments` table)
+  - `CustomTaskModal` — title (required), recurrence (required), category label + description (optional)
+  - Migration: `20260419120000_add_custom_tasks.sql`
 
 ### Next up
-- **Custom tasks** — user-defined tasks for personal workspace and associations
 - **Email verification** — re-enable after members sign up via invite link
 - **Deadline reminder emails** — Resend + Supabase Edge Functions + pg_cron (daily check, send reminders for tasks due within 14 days)
 - **Feature flags** — hide conditional tasks (heis, lekeplass, radon) if building lacks those features
@@ -160,17 +168,20 @@ A React frontend with Supabase backend for managing HMS (Health, Safety and Envi
 | column | type | notes |
 |---|---|---|
 | id | uuid PK | |
-| category | text | e.g. `brannvern`, `heis` |
-| category_label | text | Norwegian display name |
+| category | text nullable | e.g. `brannvern`, `heis` — null for custom tasks |
+| category_label | text | Norwegian display name; user-provided for custom tasks |
 | title | text | |
 | description | text nullable | |
-| legal_basis | text nullable | specific law/paragraph |
+| legal_basis | text nullable | specific law/paragraph — null for custom tasks |
 | recurrence | text | daily \| monthly \| quarterly \| twice_yearly \| annually \| every_2_years \| every_5_years \| every_5_7_years \| every_10_years \| per_project |
-| requires_professional | boolean | |
+| requires_professional | boolean | defaults false |
 | is_conditional | boolean | only applies if building has certain feature |
-| sort_order | integer | |
+| sort_order | integer | defaults 0 |
+| association_id | uuid FK nullable | → associations.id — set for association custom tasks, null for seeded/personal |
+| created_by | uuid FK nullable | → auth.users.id — null = seeded (global); set = custom task owner |
+| created_at | timestamptz nullable | set on insert for custom tasks |
 
-28 tasks pre-seeded across 10 categories. See `supabase/migrations/20260415113448_seed_task_templates.sql`.
+28 seeded tasks across 10 categories (`created_by IS NULL`). See `supabase/migrations/20260415113448_seed_task_templates.sql`.
 
 ### `user_profiles`
 | column | type | notes |
@@ -185,8 +196,8 @@ Created on: individual signup (`/register`), association onboarding (`/onboardin
 | column | type | notes |
 |---|---|---|
 | id | uuid PK | |
-| association_id | uuid FK nullable | → associations.id — null for personal workspace tasks |
-| task_template_id | uuid FK | → task_templates.id |
+| association_id | uuid FK nullable | → associations.id — null for personal workspace completions |
+| task_template_id | uuid FK | → task_templates.id (works for both seeded and custom tasks) |
 | completed_by | uuid FK nullable | → auth.users.id |
 | completed_at | timestamptz | defaults to now() |
 | notes | text nullable | |

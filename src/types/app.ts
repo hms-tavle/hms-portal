@@ -35,6 +35,7 @@ export interface TaskTemplate {
   sort_order: number
   association_id: string | null
   created_by: string | null
+  first_due_at: string | null
 }
 
 export interface TaskCompletion {
