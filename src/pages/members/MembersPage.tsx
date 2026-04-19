@@ -14,11 +14,6 @@ function inviteUrl(token: string): string {
   return `${base}#/invite?token=${token}`
 }
 
-function isExpired(expiresAt: string | null): boolean {
-  if (!expiresAt) return true
-  return new Date(expiresAt) < new Date()
-}
-
 // ── Component ────────────────────────────────────────────────────────────────
 
 export default function MembersPage() {
@@ -29,7 +24,7 @@ export default function MembersPage() {
   const [membersLoading, setMembersLoading] = useState(true)
   const [generating, setGenerating] = useState<string | null>(null)
   const [copied, setCopied] = useState<string | null>(null)
-  const [collapsedLinks, setCollapsedLinks] = useState<Set<string>>(new Set())
+  const [showingLink, setShowingLink] = useState<Set<string>>(new Set())
 
   const loading = assocLoading || membersLoading
 
@@ -70,10 +65,9 @@ export default function MembersPage() {
 
     if (!error) {
       setMembers(prev => prev.map(m =>
-        m.id === memberId
-          ? { ...m, invite_token: token, invite_expires_at: expiresAt }
-          : m
+        m.id === memberId ? { ...m, invite_token: token, invite_expires_at: expiresAt } : m
       ))
+      setShowingLink(prev => new Set([...prev, memberId]))
     }
     setGenerating(null)
   }
@@ -81,13 +75,14 @@ export default function MembersPage() {
   async function copyInvite(memberId: string, token: string) {
     await navigator.clipboard.writeText(inviteUrl(token))
     setCopied(memberId)
-    // Reveal the URL when copying so the user can verify what was copied
-    setCollapsedLinks(prev => { const s = new Set(prev); s.delete(memberId); return s })
-    setTimeout(() => setCopied(null), 2000)
+    setTimeout(() => {
+      setCopied(null)
+      setShowingLink(prev => { const s = new Set(prev); s.delete(memberId); return s })
+    }, 2000)
   }
 
-  function hideLink(memberId: string) {
-    setCollapsedLinks(prev => new Set([...prev, memberId]))
+  function dismissLink(memberId: string) {
+    setShowingLink(prev => { const s = new Set(prev); s.delete(memberId); return s })
   }
 
   return (
@@ -103,7 +98,7 @@ export default function MembersPage() {
       {!loading && association && (
         <div className="divide-y border rounded-lg">
           {members.map(member => {
-            const hasValidInvite = member.invite_token && !isExpired(member.invite_expires_at)
+            const isShowingLink = showingLink.has(member.id)
 
             return (
               <div key={member.id} className="px-4 py-3">
@@ -121,56 +116,31 @@ export default function MembersPage() {
                     {member.email && (
                       <p className="text-xs text-muted-foreground">{member.email}</p>
                     )}
-                        {hasValidInvite && (
-                      <p className="text-xs text-muted-foreground">
-                        Invitasjon utløper {new Date(member.invite_expires_at!).toLocaleDateString('nb-NO', { day: 'numeric', month: 'short', year: 'numeric' })}
-                      </p>
-                    )}
                   </div>
 
                   {!member.user_id && (
-                    <div className="flex items-center gap-2 shrink-0">
-                      {hasValidInvite ? (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => copyInvite(member.id, member.invite_token!)}
-                        >
+                    <div className="shrink-0">
+                      {isShowingLink ? (
+                        <Button size="sm" variant="outline" onClick={() => copyInvite(member.id, member.invite_token!)}>
                           {copied === member.id ? 'Kopiert!' : 'Kopier lenke'}
                         </Button>
                       ) : (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          disabled={generating === member.id}
-                          onClick={() => generateInvite(member.id)}
-                        >
+                        <Button size="sm" variant="outline" disabled={generating === member.id} onClick={() => generateInvite(member.id)}>
                           {generating === member.id ? '…' : 'Inviter'}
-                        </Button>
-                      )}
-                      {hasValidInvite && (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          disabled={generating === member.id}
-                          onClick={() => generateInvite(member.id)}
-                          title="Generer ny lenke"
-                        >
-                          Forny
                         </Button>
                       )}
                     </div>
                   )}
                 </div>
 
-                {hasValidInvite && !collapsedLinks.has(member.id) && (
+                {isShowingLink && member.invite_token && (
                   <div className="mt-2 flex items-start gap-2">
                     <p className="flex-1 text-xs text-muted-foreground break-all font-mono bg-muted rounded px-2 py-1">
-                      {inviteUrl(member.invite_token!)}
+                      {inviteUrl(member.invite_token)}
                     </p>
                     <button
                       className="mt-1 shrink-0 text-muted-foreground hover:text-foreground"
-                      onClick={() => hideLink(member.id)}
+                      onClick={() => dismissLink(member.id)}
                       aria-label="Skjul lenke"
                     >
                       <X size={14} />
