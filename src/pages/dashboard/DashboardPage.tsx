@@ -33,6 +33,8 @@ export default function DashboardPage() {
     if (wsLoading) return
     setDataLoading(true)
 
+    let cancelled = false
+
     async function load() {
       if (association) {
         const assocId = association.id
@@ -43,6 +45,8 @@ export default function DashboardPage() {
             supabase.from('association_members').select('id, user_id, full_name').eq('association_id', assocId),
             supabase.from('task_assignments').select('task_template_id, assigned_to').eq('association_id', assocId),
           ])
+
+        if (cancelled) return
 
         const seeded = (taskData ?? []).filter(t => t.created_by === null)
         const custom = (taskData ?? []).filter(t => t.created_by !== null)
@@ -71,6 +75,7 @@ export default function DashboardPage() {
           supabase.from('task_templates').select('*').eq('created_by', session!.user.id).is('association_id', null).order('created_at', { ascending: true }),
           supabase.from('task_completions').select('id, task_template_id, completed_at, completed_by').is('association_id', null).order('completed_at', { ascending: false }),
         ])
+        if (cancelled) return
         setTasks(taskData ?? [])
         setCompletions(completionData ?? [])
         setMemberNames(new Map())
@@ -81,6 +86,7 @@ export default function DashboardPage() {
     }
 
     load()
+    return () => { cancelled = true }
   }, [wsLoading, activeWorkspace])
 
   async function markDone(task: TaskTemplate, dateStr: string): Promise<string | null> {
