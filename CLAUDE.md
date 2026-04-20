@@ -264,10 +264,18 @@ Created on: individual signup (`/register`), association onboarding (`/onboardin
 - `CustomTaskModal.tsx` — `CustomTaskModal` + exported `CustomTaskData` interface
 
 ## Migrations
+
+### Workflow
 Using Supabase CLI installed as dev dependency (`npx supabase`).
 - `npm run db:migration <name>` — create new migration file in `supabase/migrations/`
 - `npm run db:push` — apply pending migrations to remote Supabase project
 - Must run `npx supabase login` and `npx supabase link --project-ref rooygqbwulreyrwfvsyf` first
+
+### Best Practices
+- **Never modify existing migrations** after they've been created. Migrations are immutable once pushed to the remote database.
+- **Always create new migrations** for any schema or RLS policy changes, even if modifying existing tables/policies.
+- **One concern per migration** — keep migrations focused on a single logical change (e.g., add column OR create RLS policy, not both).
+- **Describe the change in the filename** — e.g., `20260420010000_add_external_actor_rls.sql` is clearer than `20260420010000_update_policies.sql`.
 
 ## Routing
 - `HashRouter` used for GitHub Pages compatibility (no server-side routing)
