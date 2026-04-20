@@ -166,6 +166,7 @@ A React frontend with Supabase backend for managing HMS (Health, Safety and Envi
 - **Trial expiry enforcement** — lock access when trial ends
 - **Admin panel** — internal page to view all organizations, members, external members, subscription status; soft-delete orgs (mark inactive); details TBD at implementation
 - **Test environment** — investigate staging/test setup without additional cost (e.g. Supabase branching, local shadow DB, or separate free-tier project)
+- **Security definer review** — `get_my_association_ids()` is a single point of failure used in all RLS policies; evaluate replacing with a non-SECURITY DEFINER approach (e.g. dedicated RPC for onboarding inserts) to reduce blast radius if function is tampered with
 
 ### Deferred
 - Email confirmation — Keep OFF in Supabase (no verification required at signup). Email verification will be required when transitioning from trial to paid subscription (verified during subscription setup, not during user signup). Will implement as part of subscription feature.
