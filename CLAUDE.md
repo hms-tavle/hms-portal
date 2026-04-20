@@ -135,7 +135,6 @@ A React frontend with Supabase backend for managing HMS (Health, Safety and Envi
 
 ### Next up
 - **PWA** — manifest, service worker, installable on mobile/desktop
-- **Email verification** — re-enable after members sign up via invite link
 - **Deadline reminder emails** — Resend + Supabase Edge Functions + pg_cron (daily check, send reminders for tasks due within 14 days)
 - **Feature flags** — hide conditional tasks (heis, lekeplass, radon) if building lacks those features
 - **Trial expiry enforcement** — lock access when trial ends
@@ -144,7 +143,7 @@ A React frontend with Supabase backend for managing HMS (Health, Safety and Envi
 - **Test environment** — investigate staging/test setup without additional cost (e.g. Supabase branching, local shadow DB, or separate free-tier project)
 
 ### Deferred
-- Email confirmation — currently OFF in Supabase dashboard (Auth → Providers → Email). Must be re-enabled before production.
+- Email confirmation — Keep OFF in Supabase (no verification required at signup). Email verification will be required when transitioning from trial to paid subscription (verified during subscription setup, not during user signup). Will implement as part of subscription feature.
 - Registration flow bugs — a few known issues noted during testing, deferred
 
 ## Database Schema
