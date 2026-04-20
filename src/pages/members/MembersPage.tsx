@@ -2,10 +2,12 @@ import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { X } from 'lucide-react'
+import { Input } from '@/components/ui/input'
+import { X, Edit2 } from 'lucide-react'
 import Layout from '@/components/Layout'
-import { getRoleLabel, ROLE_ORDER } from '@/constants/roles'
+import { getRoleLabel, ROLE_ORDER, ROLE_CODES, type RoleCode } from '@/constants/roles'
 import { INVITE_EXPIRY_DAYS } from '@/constants/config'
+import { emailField } from '@/lib/validation'
 import type { AssociationMember } from '@/types/app'
 import { useWorkspace } from '@/contexts/WorkspaceContext'
 
@@ -25,6 +27,9 @@ export default function MembersPage() {
   const [generating, setGenerating] = useState<string | null>(null)
   const [copied, setCopied] = useState<string | null>(null)
   const [showingLink, setShowingLink] = useState<Set<string>>(new Set())
+  const [editingMemberId, setEditingMemberId] = useState<string | null>(null)
+  const [editForm, setEditForm] = useState<{ full_name: string; email: string; role_code: RoleCode }>({ full_name: '', email: '', role_code: 'MEDL' })
+  const [editError, setEditError] = useState<string | null>(null)
 
   const loading = assocLoading || membersLoading
 
@@ -85,6 +90,58 @@ export default function MembersPage() {
     setShowingLink(prev => { const s = new Set(prev); s.delete(memberId); return s })
   }
 
+  function startEdit(member: AssociationMember) {
+    setEditingMemberId(member.id)
+    setEditForm({ full_name: member.full_name, email: member.email ?? '', role_code: member.role_code as RoleCode })
+    setEditError(null)
+  }
+
+  function cancelEdit() {
+    setEditingMemberId(null)
+    setEditForm({ full_name: '', email: '', role_code: 'MEDL' })
+    setEditError(null)
+  }
+
+  async function saveEdit(memberId: string) {
+    setEditError(null)
+
+    if (!editForm.full_name.trim()) {
+      setEditError('Navn er påkrevd')
+      return
+    }
+
+    if (editForm.email && !emailField.safeParse(editForm.email).success) {
+      setEditError('Ugyldig e-postadresse')
+      return
+    }
+
+    if (!ROLE_CODES.includes(editForm.role_code)) {
+      setEditError('Ugyldig rolle')
+      return
+    }
+
+    const { error } = await supabase
+      .from('association_members')
+      .update({
+        full_name: editForm.full_name.trim(),
+        email: editForm.email.trim() || null,
+        role_code: editForm.role_code,
+      })
+      .eq('id', memberId)
+
+    if (error) {
+      setEditError('Kunne ikke lagre endringer')
+    } else {
+      setMembers(prev => prev.map(m =>
+        m.id === memberId
+          ? { ...m, full_name: editForm.full_name.trim(), email: editForm.email.trim() || null, role_code: editForm.role_code }
+          : m
+      ))
+      setEditingMemberId(null)
+      setEditForm({ full_name: '', email: '', role_code: 'MEDL' })
+    }
+  }
+
   return (
     <Layout>
       {loading && <p className="text-muted-foreground">Laster medlemmer…</p>}
@@ -99,53 +156,117 @@ export default function MembersPage() {
         <div className="divide-y border rounded-lg">
           {members.map(member => {
             const isShowingLink = showingLink.has(member.id)
+            const isEditing = editingMemberId === member.id
 
             return (
               <div key={member.id} className="px-4 py-3">
-                <div className="flex items-center gap-3">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex flex-wrap items-center gap-2 mb-0.5">
-                      <span className="text-sm font-medium">{member.full_name}</span>
-                      <Badge variant="outline" className="text-xs shrink-0">
-                        {getRoleLabel(member.role_code)}
-                      </Badge>
-                      {!member.user_id && (
-                        <Badge variant="secondary" className="text-xs shrink-0">Ikke aktiv</Badge>
-                      )}
+                {isEditing ? (
+                  <div className="space-y-3">
+                    <div>
+                      <label className="text-xs font-medium text-muted-foreground">Navn</label>
+                      <Input
+                        value={editForm.full_name}
+                        onChange={e => setEditForm(prev => ({ ...prev, full_name: e.target.value }))}
+                        className="mt-1"
+                        placeholder="Fullt navn"
+                      />
                     </div>
-                    {member.email && (
-                      <p className="text-xs text-muted-foreground">{member.email}</p>
+
+                    <div>
+                      <label className="text-xs font-medium text-muted-foreground">E-post</label>
+                      <Input
+                        value={editForm.email}
+                        onChange={e => setEditForm(prev => ({ ...prev, email: e.target.value }))}
+                        className="mt-1"
+                        placeholder="E-postadresse (valgfritt)"
+                        type="email"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-xs font-medium text-muted-foreground">Rolle</label>
+                      <select
+                        value={editForm.role_code}
+                        onChange={e => setEditForm(prev => ({ ...prev, role_code: e.target.value as RoleCode }))}
+                        className="mt-1 w-full px-3 py-2 text-sm border rounded-md bg-background"
+                      >
+                        {ROLE_CODES.map(code => (
+                          <option key={code} value={code}>{getRoleLabel(code)}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {editError && (
+                      <p className="text-xs text-red-600">{editError}</p>
                     )}
-                  </div>
 
-                  {!member.user_id && !member.email && (
-                    <div className="shrink-0">
-                      {isShowingLink ? (
-                        <Button size="sm" variant="outline" onClick={() => copyInvite(member.id, member.invite_token!)}>
-                          {copied === member.id ? 'Kopiert!' : 'Kopier lenke'}
-                        </Button>
-                      ) : (
-                        <Button size="sm" variant="outline" disabled={generating === member.id} onClick={() => generateInvite(member.id)}>
-                          {generating === member.id ? '…' : 'Inviter'}
-                        </Button>
-                      )}
+                    <div className="flex gap-2 pt-2">
+                      <Button size="sm" onClick={() => saveEdit(member.id)}>
+                        Lagre
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={cancelEdit}>
+                        Avbryt
+                      </Button>
                     </div>
-                  )}
-                </div>
-
-                {isShowingLink && !member.email && member.invite_token && (
-                  <div className="mt-2 flex items-start gap-2">
-                    <p className="flex-1 text-xs text-muted-foreground break-all font-mono bg-muted rounded px-2 py-1">
-                      {inviteUrl(member.invite_token)}
-                    </p>
-                    <button
-                      className="mt-1 shrink-0 text-muted-foreground hover:text-foreground"
-                      onClick={() => dismissLink(member.id)}
-                      aria-label="Skjul lenke"
-                    >
-                      <X size={14} />
-                    </button>
                   </div>
+                ) : (
+                  <>
+                    <div className="flex items-center gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex flex-wrap items-center gap-2 mb-0.5">
+                          <span className="text-sm font-medium">{member.full_name}</span>
+                          <Badge variant="outline" className="text-xs shrink-0">
+                            {getRoleLabel(member.role_code)}
+                          </Badge>
+                          {!member.user_id && (
+                            <Badge variant="secondary" className="text-xs shrink-0">Ikke aktiv</Badge>
+                          )}
+                        </div>
+                        {member.email && (
+                          <p className="text-xs text-muted-foreground">{member.email}</p>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-2 shrink-0">
+                        <button
+                          className="p-1 text-muted-foreground hover:text-foreground"
+                          onClick={() => startEdit(member)}
+                          aria-label="Rediger medlem"
+                        >
+                          <Edit2 size={16} />
+                        </button>
+
+                        {!member.user_id && !member.email && (
+                          <>
+                            {isShowingLink ? (
+                              <Button size="sm" variant="outline" onClick={() => copyInvite(member.id, member.invite_token!)}>
+                                {copied === member.id ? 'Kopiert!' : 'Kopier lenke'}
+                              </Button>
+                            ) : (
+                              <Button size="sm" variant="outline" disabled={generating === member.id} onClick={() => generateInvite(member.id)}>
+                                {generating === member.id ? '…' : 'Inviter'}
+                              </Button>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    </div>
+
+                    {isShowingLink && !member.email && member.invite_token && (
+                      <div className="mt-2 flex items-start gap-2">
+                        <p className="flex-1 text-xs text-muted-foreground break-all font-mono bg-muted rounded px-2 py-1">
+                          {inviteUrl(member.invite_token)}
+                        </p>
+                        <button
+                          className="mt-1 shrink-0 text-muted-foreground hover:text-foreground"
+                          onClick={() => dismissLink(member.id)}
+                          aria-label="Skjul lenke"
+                        >
+                          <X size={14} />
+                        </button>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             )

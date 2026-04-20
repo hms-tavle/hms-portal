@@ -137,6 +137,8 @@ A React frontend with Supabase backend for managing HMS (Health, Safety and Envi
 - **Feature flags** — hide conditional tasks (heis, lekeplass, radon) if building lacks those features
 - **Trial expiry enforcement** — lock access when trial ends
 - **External actors** — contractors/inspectors added to association, only see assigned tasks
+- **Admin panel** — internal page to view all organizations, members, external members, subscription status; soft-delete orgs (mark inactive); details TBD at implementation
+- **Test environment** — investigate staging/test setup without additional cost (e.g. Supabase branching, local shadow DB, or separate free-tier project)
 
 ### Deferred
 - Email confirmation — currently OFF in Supabase dashboard (Auth → Providers → Email). Must be re-enabled before production.
