@@ -47,6 +47,12 @@ export async function searchAssociations(query: string): Promise<BrregEnhet[]> {
   return exactMatch ? [exactMatch] : enheter
 }
 
+export async function fetchEnhet(orgnr: string): Promise<BrregEnhet | null> {
+  const res = await fetch(`${BASE}/enheter/${orgnr.replace(/\s/g, '')}`)
+  if (!res.ok) return null
+  return res.json()
+}
+
 export async function fetchRoller(orgnr: string): Promise<BrregRollerResponse | null> {
   const res = await fetch(`${BASE}/enheter/${orgnr}/roller`)
   if (!res.ok) return null

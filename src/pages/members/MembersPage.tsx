@@ -9,6 +9,7 @@ import Layout from '@/components/Layout'
 import { getRoleLabel, ROLE_ORDER, ROLE_CODES, type RoleCode } from '@/constants/roles'
 import { INVITE_EXPIRY_DAYS } from '@/constants/config'
 import { emailField } from '@/lib/validation'
+import { fetchEnhet } from '@/lib/brreg'
 import type { AssociationMember } from '@/types/app'
 import { useWorkspace } from '@/contexts/WorkspaceContext'
 
@@ -40,9 +41,10 @@ export default function MembersPage() {
   const [editForm, setEditForm] = useState<{ full_name: string; email: string; role_code: RoleCode }>({ full_name: '', email: '', role_code: 'MEDL' })
   const [editError, setEditError] = useState<string | null>(null)
   const [showAddExternalActor, setShowAddExternalActor] = useState(false)
-  const [externalActorForm, setExternalActorForm] = useState({ full_name: '', email: '', company: '' })
+  const [externalActorForm, setExternalActorForm] = useState({ full_name: '', email: '', company: '', orgnr: '' })
   const [externalActorError, setExternalActorError] = useState<string | null>(null)
   const [addingExternalActor, setAddingExternalActor] = useState(false)
+  const [orgnrLookupStatus, setOrgnrLookupStatus] = useState<'idle' | 'loading' | 'found' | 'not_found'>('idle')
 
   const loading = assocLoading || membersLoading
 
@@ -55,7 +57,7 @@ export default function MembersPage() {
     async function load() {
       const { data: membersData } = await supabase
         .from('association_members')
-        .select('id, full_name, email, role_code, user_id, invite_token, invite_expires_at')
+        .select('id, full_name, email, role_code, user_id, invite_token, invite_expires_at, company')
         .eq('association_id', assocId)
 
       const sorted = (membersData ?? []).sort((a, b) => {
@@ -155,6 +157,22 @@ export default function MembersPage() {
     }
   }
 
+  async function lookupOrgnr() {
+    const orgnr = externalActorForm.orgnr.replace(/\s/g, '')
+    if (!/^\d{9}$/.test(orgnr)) {
+      setOrgnrLookupStatus('not_found')
+      return
+    }
+    setOrgnrLookupStatus('loading')
+    const enhet = await fetchEnhet(orgnr)
+    if (enhet) {
+      setExternalActorForm(prev => ({ ...prev, company: enhet.navn }))
+      setOrgnrLookupStatus('found')
+    } else {
+      setOrgnrLookupStatus('not_found')
+    }
+  }
+
   async function addExternalActor() {
     setExternalActorError(null)
 
@@ -204,7 +222,8 @@ export default function MembersPage() {
     })
 
     setShowAddExternalActor(false)
-    setExternalActorForm({ full_name: '', email: '', company: '' })
+    setExternalActorForm({ full_name: '', email: '', company: '', orgnr: '' })
+    setOrgnrLookupStatus('idle')
     setShowingLink(new Set([insertedMember.id]))
   }
 
@@ -252,6 +271,26 @@ export default function MembersPage() {
               </div>
 
               <div>
+                <label className="text-xs font-medium text-muted-foreground">Organisasjonsnummer (valgfritt)</label>
+                <div className="flex gap-2 mt-1">
+                  <Input
+                    value={externalActorForm.orgnr}
+                    onChange={e => {
+                      setExternalActorForm(prev => ({ ...prev, orgnr: e.target.value }))
+                      setOrgnrLookupStatus('idle')
+                    }}
+                    placeholder="9-sifret org.nr."
+                    maxLength={9}
+                  />
+                  <Button type="button" size="sm" variant="outline" onClick={lookupOrgnr} disabled={orgnrLookupStatus === 'loading'}>
+                    {orgnrLookupStatus === 'loading' ? '…' : 'Slå opp'}
+                  </Button>
+                </div>
+                {orgnrLookupStatus === 'found' && <p className="text-xs text-green-600 mt-1">Fant: {externalActorForm.company}</p>}
+                {orgnrLookupStatus === 'not_found' && <p className="text-xs text-muted-foreground mt-1">Ingen treff — du kan fylle inn firmanavn manuelt.</p>}
+              </div>
+
+              <div>
                 <label className="text-xs font-medium text-muted-foreground">Selskap / Firma</label>
                 <Input
                   value={externalActorForm.company}
@@ -269,7 +308,7 @@ export default function MembersPage() {
                 <Button size="sm" onClick={addExternalActor} disabled={addingExternalActor}>
                   {addingExternalActor ? 'Legger til…' : 'Legg til'}
                 </Button>
-                <Button size="sm" variant="outline" onClick={() => setShowAddExternalActor(false)}>
+                <Button size="sm" variant="outline" onClick={() => { setShowAddExternalActor(false); setOrgnrLookupStatus('idle') }}>
                   Avbryt
                 </Button>
               </div>
@@ -363,7 +402,7 @@ export default function MembersPage() {
                             <Edit2 size={16} />
                           </button>
 
-                          {!member.user_id && !member.email && (
+                          {!member.user_id && (!member.email || member.role_code === 'EKST') && (
                             <>
                               {isShowingLink ? (
                                 <Button size="sm" variant="outline" onClick={() => copyInvite(member.id, member.invite_token!)}>
@@ -379,7 +418,7 @@ export default function MembersPage() {
                         </div>
                       </div>
 
-                      {isShowingLink && !member.email && member.invite_token && (
+                      {isShowingLink && (!member.email || member.role_code === 'EKST') && member.invite_token && (
                         <div className="mt-2 flex items-start gap-2">
                           <p className="flex-1 text-xs text-muted-foreground break-all font-mono bg-muted rounded px-2 py-1">
                             {inviteUrl(member.invite_token)}
