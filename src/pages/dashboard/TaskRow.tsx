@@ -56,7 +56,7 @@ export function TaskRow({
   assignedMemberId: string | null
   currentUserId: string
   showAssignment: boolean
-  onMarkDone: (task: TaskTemplate, date: string) => Promise<void>
+  onMarkDone: (task: TaskTemplate, date: string) => Promise<string | null>
   onDeleteCompletion: (id: string) => Promise<void>
   onAssign: (taskId: string, memberId: string | null) => Promise<void>
   onEdit?: () => void
@@ -66,6 +66,7 @@ export function TaskRow({
   const [marking, setMarking] = useState(false)
   const [dateInput, setDateInput] = useState(todayStr())
   const [submitting, setSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState<string | null>(null)
   const [deleting, setDeleting] = useState<string | null>(null)
 
   const isCreator = task.created_by !== null && task.created_by === currentUserId
@@ -87,7 +88,13 @@ export function TaskRow({
 
   async function handleSubmit() {
     setSubmitting(true)
-    await onMarkDone(task, dateInput)
+    setSubmitError(null)
+    const err = await onMarkDone(task, dateInput)
+    if (err) {
+      setSubmitError(err)
+      setSubmitting(false)
+      return
+    }
     setMarking(false)
     setSubmitting(false)
     setDateInput(todayStr())
@@ -179,9 +186,12 @@ export function TaskRow({
               <Button size="sm" disabled={submitting} onClick={handleSubmit}>
                 {submitting ? '…' : 'Lagre'}
               </Button>
-              <Button size="sm" variant="ghost" onClick={() => { setMarking(false); setDateInput(todayStr()) }}>
+              <Button size="sm" variant="ghost" onClick={() => { setMarking(false); setDateInput(todayStr()); setSubmitError(null) }}>
                 Avbryt
               </Button>
+              {submitError && (
+                <span className="text-xs text-destructive">{submitError}</span>
+              )}
             </>
           ) : (
             <Button

@@ -83,7 +83,7 @@ export default function DashboardPage() {
     load()
   }, [wsLoading, activeWorkspace])
 
-  async function markDone(task: TaskTemplate, dateStr: string) {
+  async function markDone(task: TaskTemplate, dateStr: string): Promise<string | null> {
     const { data, error } = await supabase
       .from('task_completions')
       .insert({
@@ -94,7 +94,9 @@ export default function DashboardPage() {
       })
       .select('id, task_template_id, completed_at, completed_by')
       .single()
-    if (!error && data) setCompletions(prev => [data as TaskCompletion, ...prev])
+    if (error) return 'Kunne ikke lagre fullføring. Prøv igjen.'
+    if (data) setCompletions(prev => [data as TaskCompletion, ...prev])
+    return null
   }
 
   async function deleteCompletion(id: string) {
