@@ -128,9 +128,12 @@ A React frontend with Supabase backend for managing HMS (Health, Safety and Envi
   - `first_due_at` on `task_templates` — sets initial due date for custom tasks; defaults to today + interval; hidden for `per_project`
   - Tasks within each year-tab sorted by next due date ascending
   - Migrations: `20260419120000_add_custom_tasks.sql`, `20260419130000_add_first_due_at.sql`
+- Edit member info — inline editing on `/members` page
+  - Click pencil icon on member row → fields become editable (name, email, role)
+  - Validation: name required, email format check, role from enum
+  - Save/Cancel buttons; RLS already allows authenticated members to update in their association
 
 ### Next up
-- **Edit member info** — edit name, email, role on the members page
 - **PWA** — manifest, service worker, installable on mobile/desktop
 - **Email verification** — re-enable after members sign up via invite link
 - **Deadline reminder emails** — Resend + Supabase Edge Functions + pg_cron (daily check, send reminders for tasks due within 14 days)
