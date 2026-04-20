@@ -17,7 +17,7 @@ import {
 export interface MemberOption {
   id: string
   full_name: string
-  role_code?: string
+  role_code: string
 }
 
 function memberLabel(m: MemberOption): string {

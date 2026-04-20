@@ -160,9 +160,15 @@ export default function OnboardingPage() {
     }
 
     const styrelederName = styreleder?.person ? formatName(styreleder.person.navn) : 'Ukjent'
-    await supabase
+    const { error: profileError } = await supabase
       .from('user_profiles')
       .insert({ id: authData.user!.id, full_name: styrelederName })
+
+    if (profileError) {
+      setSubmitError('Kunne ikke opprette brukerprofil. Prøv igjen.')
+      setSubmitting(false)
+      return
+    }
 
     await refreshWorkspaces()
     navigate('/dashboard')
