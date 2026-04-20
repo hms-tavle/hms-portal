@@ -17,6 +17,7 @@ import {
 export interface MemberOption {
   id: string
   full_name: string
+  role_code?: string
 }
 
 function StatusDot({ status }: { status: TaskStatus }) {
@@ -126,13 +127,19 @@ export function TaskRow({
               >
                 <SelectTrigger>
                   <SelectValue>
-                    {(v: string | null) => v ? (memberList.find(m => m.id === v)?.full_name ?? v) : 'Ingen'}
+                    {(v: string | null) => {
+                      const m = v ? memberList.find(m => m.id === v) : null
+                      if (!m) return 'Ingen'
+                      return m.role_code === 'EKST' ? `(Ekstern) ${m.full_name}` : m.full_name
+                    }}
                   </SelectValue>
                 </SelectTrigger>
                 <SelectPopup>
                   <SelectItem value="">Ingen</SelectItem>
                   {memberList.map(m => (
-                    <SelectItem key={m.id} value={m.id}>{m.full_name}</SelectItem>
+                    <SelectItem key={m.id} value={m.id}>
+                      {m.role_code === 'EKST' ? `(Ekstern) ${m.full_name}` : m.full_name}
+                    </SelectItem>
                   ))}
                 </SelectPopup>
               </Select>

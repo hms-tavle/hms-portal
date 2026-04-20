@@ -56,7 +56,7 @@ export default function DashboardPage() {
         for (const m of (membersData ?? []) as AssociationMember[]) {
           if (m.user_id) names.set(m.user_id, m.full_name)
           if (m.user_id === session!.user.id) myMemberId = m.id
-          list.push({ id: m.id, full_name: m.full_name })
+          list.push({ id: m.id, full_name: m.full_name, role_code: m.role_code })
         }
         setMemberNames(names)
         setMemberList(list)

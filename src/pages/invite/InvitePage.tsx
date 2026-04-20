@@ -12,12 +12,14 @@ import { PASSWORD_MIN_LENGTH } from '@/constants/config'
 interface InviteRow {
   full_name: string
   role_code: string
+  email: string | null
   associations: { navn: string } | null
 }
 
 interface MemberInfo {
   full_name: string
   role_code: string
+  email: string | null
   associationName: string
 }
 
@@ -50,7 +52,7 @@ export default function InvitePage() {
 
       const { data, error } = await supabase
         .from('association_members')
-        .select('full_name, role_code, associations(navn)')
+        .select('full_name, role_code, email, associations(navn)')
         .eq('invite_token', token)
         .gt('invite_expires_at', new Date().toISOString())
         .is('user_id', null)
@@ -63,6 +65,7 @@ export default function InvitePage() {
         setMember({
           full_name: row.full_name,
           role_code: row.role_code,
+          email: row.email,
           associationName: row.associations?.navn ?? '',
         })
       }
@@ -159,16 +162,33 @@ export default function InvitePage() {
         </div>
 
         {session ? (
-          // User is already logged in — one click to join
-          <div className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              Du er allerede innlogget. Klikk for å bli med i {member!.associationName}.
-            </p>
-            {error && <p className="text-sm text-destructive">{error}</p>}
-            <Button className="w-full" onClick={handleClaimDirectly} disabled={submitting}>
-              {submitting ? 'Kobler til…' : `Bli med i ${member!.associationName}`}
-            </Button>
-          </div>
+          // User is already logged in
+          member!.email && session.user.email !== member!.email ? (
+            // Logged in as a different user — block to prevent accidental claim
+            <div className="space-y-3">
+              <p className="text-sm text-muted-foreground">
+                Du er innlogget som <span className="font-medium text-foreground">{session.user.email}</span>, men denne invitasjonen gjelder{' '}
+                <span className="font-medium text-foreground">{member!.email}</span>.
+              </p>
+              <p className="text-sm text-muted-foreground">
+                Logg ut og åpne lenken i en privat fane, eller logg inn med riktig konto.
+              </p>
+              <Button variant="outline" className="w-full" onClick={() => window.history.back()}>
+                Gå tilbake
+              </Button>
+            </div>
+          ) : (
+            // Correct user — one click to join
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Du er allerede innlogget. Klikk for å bli med i {member!.associationName}.
+              </p>
+              {error && <p className="text-sm text-destructive">{error}</p>}
+              <Button className="w-full" onClick={handleClaimDirectly} disabled={submitting}>
+                {submitting ? 'Kobler til…' : `Bli med i ${member!.associationName}`}
+              </Button>
+            </div>
+          )
         ) : (
           // User needs to authenticate first
           <div className="space-y-4">
