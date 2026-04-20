@@ -132,6 +132,7 @@ export default function OnboardingPage() {
         navn: selected.navn,
         org_form: selected.organisasjonsform.kode,
         poststed: selected.forretningsadresse?.poststed ?? null,
+        created_by: authData.user!.id,
       })
 
     if (assocError) {
