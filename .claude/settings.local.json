@@ -15,7 +15,8 @@
       "Bash(npm run *)",
       "Bash(git add *)",
       "Bash(git commit -m 'Add member info editing on MembersPage *)",
-      "Bash(git commit -m 'Update CLAUDE.md: mark edit member info as done *)"
+      "Bash(git commit -m 'Update CLAUDE.md: mark edit member info as done *)",
+      "Bash(rtk git *)"
     ]
   }
 }
