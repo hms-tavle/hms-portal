@@ -16,7 +16,10 @@
       "Bash(git add *)",
       "Bash(git commit -m 'Add member info editing on MembersPage *)",
       "Bash(git commit -m 'Update CLAUDE.md: mark edit member info as done *)",
-      "Bash(rtk git *)"
+      "Bash(rtk git *)",
+      "mcp__plugin_context-mode_context-mode__ctx_execute_file",
+      "Bash(git commit *)",
+      "Bash(rtk npm *)"
     ]
   }
 }

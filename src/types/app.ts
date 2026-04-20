@@ -20,6 +20,7 @@ export interface AssociationMember {
   role_code: string
   invite_token: string | null
   invite_expires_at: string | null
+  company?: string | null
 }
 
 export interface TaskTemplate {

@@ -50,7 +50,12 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
         {/* Section nav */}
         <nav className="max-w-3xl mx-auto px-4 flex gap-1 border-t">
-          {NAV_ITEMS.map(item => (
+          {NAV_ITEMS.filter(item => {
+            if (activeWorkspace?.kind === 'association' && activeWorkspace.role_code === 'EKST' && item.to === '/members') {
+              return false
+            }
+            return true
+          }).map(item => (
             <NavLink
               key={item.to}
               to={item.to}

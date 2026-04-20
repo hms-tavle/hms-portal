@@ -15,12 +15,15 @@ export default function DashboardPage() {
   const { session } = useAuth()
   const { activeWorkspace, loading: wsLoading } = useWorkspace()
   const association = activeWorkspace?.kind === 'association' ? activeWorkspace.association : null
+  const currentUserRole = activeWorkspace?.kind === 'association' ? activeWorkspace.role_code : undefined
+  const isExternalActor = currentUserRole === 'EKST'
 
   const [tasks, setTasks] = useState<TaskTemplate[]>([])
   const [completions, setCompletions] = useState<TaskCompletion[]>([])
   const [memberNames, setMemberNames] = useState<Map<string, string>>(new Map())
   const [memberList, setMemberList] = useState<MemberOption[]>([])
   const [assignments, setAssignments] = useState<Map<string, string>>(new Map())
+  const [currentMemberId, setCurrentMemberId] = useState<string | null>(null)
   const [dataLoading, setDataLoading] = useState(true)
   const [modalOpen, setModalOpen] = useState(false)
   const [editingTask, setEditingTask] = useState<TaskTemplate | null>(null)
@@ -49,12 +52,15 @@ export default function DashboardPage() {
 
         const names = new Map<string, string>()
         const list: MemberOption[] = []
+        let myMemberId: string | null = null
         for (const m of (membersData ?? []) as AssociationMember[]) {
           if (m.user_id) names.set(m.user_id, m.full_name)
+          if (m.user_id === session!.user.id) myMemberId = m.id
           list.push({ id: m.id, full_name: m.full_name })
         }
         setMemberNames(names)
         setMemberList(list)
+        setCurrentMemberId(myMemberId)
 
         const asgn = new Map<string, string>()
         for (const a of (assignmentData ?? []) as { task_template_id: string; assigned_to: string }[]) {
@@ -143,9 +149,13 @@ export default function DashboardPage() {
   const latestCompletion = (taskId: string): TaskCompletion | null =>
     completions.find(c => c.task_template_id === taskId) ?? null
 
+  const visibleTasks = isExternalActor && currentMemberId
+    ? tasks.filter(task => assignments.get(task.id) === currentMemberId)
+    : tasks
+
   const yearGroups = (() => {
     const map = new Map<GroupKey, TaskTemplate[]>()
-    for (const task of tasks) {
+    for (const task of visibleTasks) {
       const key = getGroupKey(task, latestCompletion(task.id))
       if (!map.has(key)) map.set(key, [])
       map.get(key)!.push(task)
@@ -183,17 +193,23 @@ export default function DashboardPage() {
         <p className="text-muted-foreground">Laster oppgaver…</p>
       ) : (
         <>
-          <div className="flex justify-end mb-4">
-            <Button size="sm" variant="outline" onClick={() => { setEditingTask(null); setModalOpen(true) }}>
-              <Plus size={14} className="mr-1" />
-              Legg til oppgave
-            </Button>
-          </div>
+          {!isExternalActor && (
+            <div className="flex justify-end mb-4">
+              <Button size="sm" variant="outline" onClick={() => { setEditingTask(null); setModalOpen(true) }}>
+                <Plus size={14} className="mr-1" />
+                Legg til oppgave
+              </Button>
+            </div>
+          )}
 
-          {tasks.length === 0 ? (
+          {visibleTasks.length === 0 ? (
             <div className="text-center py-12 space-y-1">
-              <p className="text-muted-foreground">Ingen oppgaver ennå.</p>
-              <p className="text-sm text-muted-foreground">Bruk knappen over for å legge til en egendefinert oppgave.</p>
+              <p className="text-muted-foreground">
+                {isExternalActor ? 'Ingen oppgaver tildelt deg.' : 'Ingen oppgaver ennå.'}
+              </p>
+              {!isExternalActor && (
+                <p className="text-sm text-muted-foreground">Bruk knappen over for å legge til en egendefinert oppgave.</p>
+              )}
             </div>
           ) : (
             <Tabs defaultValue={defaultTab}>
@@ -216,12 +232,12 @@ export default function DashboardPage() {
                         memberList={memberList}
                         assignedMemberId={assignments.get(task.id) ?? null}
                         currentUserId={session!.user.id}
-                        showAssignment={!!association}
+                        showAssignment={!!association && !isExternalActor}
                         onMarkDone={markDone}
                         onDeleteCompletion={deleteCompletion}
                         onAssign={assignTask}
-                        onEdit={task.created_by === session!.user.id ? () => { setEditingTask(task); setModalOpen(true) } : undefined}
-                        onDelete={task.created_by === session!.user.id ? () => deleteCustomTask(task.id) : undefined}
+                        onEdit={!isExternalActor && task.created_by === session!.user.id ? () => { setEditingTask(task); setModalOpen(true) } : undefined}
+                        onDelete={!isExternalActor && task.created_by === session!.user.id ? () => deleteCustomTask(task.id) : undefined}
                       />
                     ))}
                   </div>
@@ -232,7 +248,7 @@ export default function DashboardPage() {
         </>
       )}
 
-      {modalOpen && (
+      {!isExternalActor && modalOpen && (
         <CustomTaskModal
           initial={editingTask ?? undefined}
           onSave={saveCustomTask}

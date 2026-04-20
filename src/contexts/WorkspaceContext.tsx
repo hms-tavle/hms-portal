@@ -5,6 +5,7 @@ import type { Association } from '@/types/app'
 
 interface MembershipRow {
   associations: Association | null
+  role_code: string
 }
 
 // ── Workspace types ───────────────────────────────────────────────────────────
@@ -20,6 +21,7 @@ export type AssociationWorkspace = {
   id: string          // association.id
   displayName: string // association.navn
   association: Association
+  role_code: string   // LEDE, MEDL, EKST, etc.
 }
 
 export type Workspace = PersonalWorkspace | AssociationWorkspace
@@ -65,7 +67,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     // Association workspaces — one per association_members row
     const { data: memberships } = await supabase
       .from('association_members')
-      .select('associations(id, navn, orgnr, org_form, poststed, status)')
+      .select('role_code, associations(id, navn, orgnr, org_form, poststed, status)')
       .eq('user_id', userId)
 
     for (const m of (memberships ?? []) as unknown as MembershipRow[]) {
@@ -77,6 +79,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
           id: assoc.id,
           displayName: assoc.navn,
           association: assoc,
+          role_code: m.role_code,
         })
       }
     }
