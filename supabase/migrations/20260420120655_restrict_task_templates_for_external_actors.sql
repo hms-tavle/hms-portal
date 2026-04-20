@@ -14,7 +14,12 @@ CREATE POLICY "view task templates"
       OR association_id IN (SELECT public.get_my_association_ids())
     )
     AND (
-      NOT public.is_external_actor()
+      -- Non-external actors see everything in their scope above.
+      -- External actors (EKST) only see tasks assigned to them.
+      NOT EXISTS (
+        SELECT 1 FROM public.association_members am2
+        WHERE am2.user_id = auth.uid() AND am2.role_code = 'EKST'
+      )
       OR EXISTS (
         SELECT 1
         FROM public.task_assignments ta
