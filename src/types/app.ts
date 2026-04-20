@@ -9,6 +9,7 @@ export interface Association {
   org_form: string
   poststed: string | null
   status: SubscriptionStatus
+  disabled_features: string[]
 }
 
 export interface AssociationMember {

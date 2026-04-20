@@ -7,6 +7,7 @@ import RegisterPage from '@/pages/auth/RegisterPage'
 import OnboardingPage from '@/pages/onboarding/OnboardingPage'
 import DashboardPage from '@/pages/dashboard/DashboardPage'
 import MembersPage from '@/pages/members/MembersPage'
+import SettingsPage from '@/pages/settings/SettingsPage'
 import InvitePage from '@/pages/invite/InvitePage'
 
 export default function App() {
@@ -31,6 +32,14 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <MembersPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/settings"
+            element={
+              <ProtectedRoute>
+                <SettingsPage />
               </ProtectedRoute>
             }
           />

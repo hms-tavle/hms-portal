@@ -153,12 +153,18 @@ export default function DashboardPage() {
     return m
   }, [completions])
 
-  const visibleTasks = useMemo(
-    () => isExternalActor && currentMemberId
-      ? tasks.filter(task => assignments.get(task.id) === currentMemberId)
-      : tasks,
-    [tasks, assignments, isExternalActor, currentMemberId],
-  )
+  const visibleTasks = useMemo(() => {
+    let filtered = tasks
+    if (association) {
+      filtered = filtered.filter(task =>
+        !task.is_conditional || !task.category || !association.disabled_features.includes(task.category)
+      )
+    }
+    if (isExternalActor && currentMemberId) {
+      filtered = filtered.filter(task => assignments.get(task.id) === currentMemberId)
+    }
+    return filtered
+  }, [tasks, assignments, isExternalActor, currentMemberId, association])
 
   const yearGroups = useMemo(() => {
     const map = new Map<GroupKey, TaskTemplate[]>()

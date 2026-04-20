@@ -5,7 +5,8 @@ import { useWorkspace } from '@/contexts/WorkspaceContext'
 
 const NAV_ITEMS = [
   { to: '/dashboard', label: 'Oppgaver' },
-  { to: '/members', label: 'Medlemmer' },
+  { to: '/members', label: 'Medlemmer', hideForEkst: true },
+  { to: '/settings', label: 'Innstillinger', hideForEkst: true, associationOnly: true },
 ]
 
 export default function Layout({ children }: { children: React.ReactNode }) {
@@ -51,9 +52,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         {/* Section nav */}
         <nav className="max-w-3xl mx-auto px-4 flex gap-1 border-t">
           {NAV_ITEMS.filter(item => {
-            if (activeWorkspace?.kind === 'association' && activeWorkspace.role_code === 'EKST' && item.to === '/members') {
-              return false
-            }
+            if (item.associationOnly && activeWorkspace?.kind !== 'association') return false
+            if (item.hideForEkst && activeWorkspace?.kind === 'association' && activeWorkspace.role_code === 'EKST') return false
             return true
           }).map(item => (
             <NavLink

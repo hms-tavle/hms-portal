@@ -67,7 +67,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     // Association workspaces — one per association_members row
     const { data: memberships } = await supabase
       .from('association_members')
-      .select('role_code, associations(id, navn, orgnr, org_form, poststed, status)')
+      .select('role_code, associations(id, navn, orgnr, org_form, poststed, status, disabled_features)')
       .eq('user_id', userId)
 
     for (const m of (memberships ?? []) as unknown as MembershipRow[]) {
