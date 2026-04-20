@@ -162,11 +162,19 @@ A React frontend with Supabase backend for managing HMS (Health, Safety and Envi
   - `index.html` — manifest link, theme-color, mobile-web-app-capable, apple-touch-icon
 
 ### Next up
+
+#### Security audit — remaining items (priority)
+- **[High] Drop old anon invite SELECT policy** — `association_members` has a broad anon SELECT policy from `20260415125032_add_invite_tokens.sql` that was superseded by `lookup_invite()` RPC but never dropped. Drop it; enforce all anon invite lookups go through the RPC only.
+- **[Medium] Add `role_code` CHECK constraint** — `role_code` on `association_members` is plain text; `is_external_actor()` logic can be bypassed with a crafted value. Add `CHECK (role_code IN ('LEDE','MEDL','VARA','NEST','KONT','EKST'))`.
+- **[Medium] Explicit column projection on task_templates** — `DashboardPage.tsx` uses `.select('*')`; future sensitive columns would leak automatically. Replace with explicit field list.
+- **[Medium] Remove `user_id` from member fetch** — `DashboardPage.tsx` fetches `user_id` from `association_members` (leaks who hasn't signed up yet). Use it only where needed or remove.
+- **[Security definer review]** — `get_my_association_ids()` is a single point of failure used in all RLS policies; evaluate replacing with a non-SECURITY DEFINER approach (e.g. dedicated RPC for onboarding inserts) to reduce blast radius if function is tampered with
+
+#### Features
 - **Deadline reminder emails** — Resend + Supabase Edge Functions + pg_cron (daily check, send reminders for tasks due within 14 days)
 - **Trial expiry enforcement** — lock access when trial ends
 - **Admin panel** — internal page to view all organizations, members, external members, subscription status; soft-delete orgs (mark inactive); details TBD at implementation
 - **Test environment** — investigate staging/test setup without additional cost (e.g. Supabase branching, local shadow DB, or separate free-tier project)
-- **Security definer review** — `get_my_association_ids()` is a single point of failure used in all RLS policies; evaluate replacing with a non-SECURITY DEFINER approach (e.g. dedicated RPC for onboarding inserts) to reduce blast radius if function is tampered with
 
 ### Deferred
 - Email confirmation — Keep OFF in Supabase (no verification required at signup). Email verification will be required when transitioning from trial to paid subscription (verified during subscription setup, not during user signup). Will implement as part of subscription feature.
