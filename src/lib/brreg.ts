@@ -15,16 +15,18 @@ export function getOrgFormLabel(kode: string): string {
   return ORG_FORM_LABELS[kode as OrgFormCode] ?? kode
 }
 
+export async function fetchEnhet(orgnr: string): Promise<BrregEnhet | null> {
+  const res = await fetch(`${BASE}/enheter/${orgnr.replace(/\s/g, '')}`)
+  if (!res.ok) return null
+  return res.json()
+}
+
 export async function searchAssociations(query: string): Promise<BrregEnhet[]> {
   const isOrgNumber = /^\d{9}$/.test(query.replace(/\s/g, ''))
 
   if (isOrgNumber) {
-    const orgnr = query.replace(/\s/g, '')
-    const res = await fetch(`${BASE}/enheter/${orgnr}`)
-    if (!res.ok) return []
-    const enhet: BrregEnhet = await res.json()
-    // Only return if it's a housing association
-    if (!(ORG_FORM_CODES as readonly string[]).includes(enhet.organisasjonsform?.kode)) return []
+    const enhet = await fetchEnhet(query)
+    if (!enhet || !(ORG_FORM_CODES as readonly string[]).includes(enhet.organisasjonsform?.kode)) return []
     return [enhet]
   }
 
@@ -45,12 +47,6 @@ export async function searchAssociations(query: string): Promise<BrregEnhet[]> {
   const exactMatch = enheter.find(e => normalize(e.navn) === normalizedQuery)
 
   return exactMatch ? [exactMatch] : enheter
-}
-
-export async function fetchEnhet(orgnr: string): Promise<BrregEnhet | null> {
-  const res = await fetch(`${BASE}/enheter/${orgnr.replace(/\s/g, '')}`)
-  if (!res.ok) return null
-  return res.json()
 }
 
 export async function fetchRoller(orgnr: string): Promise<BrregRollerResponse | null> {

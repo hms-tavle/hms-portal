@@ -20,6 +20,10 @@ export interface MemberOption {
   role_code?: string
 }
 
+function memberLabel(m: MemberOption): string {
+  return m.role_code === 'EKST' ? `(Ekstern) ${m.full_name}` : m.full_name
+}
+
 function StatusDot({ status }: { status: TaskStatus }) {
   const classes: Record<TaskStatus, string> = {
     overdue: 'bg-destructive',
@@ -129,17 +133,14 @@ export function TaskRow({
                   <SelectValue>
                     {(v: string | null) => {
                       const m = v ? memberList.find(m => m.id === v) : null
-                      if (!m) return 'Ingen'
-                      return m.role_code === 'EKST' ? `(Ekstern) ${m.full_name}` : m.full_name
+                      return m ? memberLabel(m) : 'Ingen'
                     }}
                   </SelectValue>
                 </SelectTrigger>
                 <SelectPopup>
                   <SelectItem value="">Ingen</SelectItem>
                   {memberList.map(m => (
-                    <SelectItem key={m.id} value={m.id}>
-                      {m.role_code === 'EKST' ? `(Ekstern) ${m.full_name}` : m.full_name}
-                    </SelectItem>
+                    <SelectItem key={m.id} value={m.id}>{memberLabel(m)}</SelectItem>
                   ))}
                 </SelectPopup>
               </Select>

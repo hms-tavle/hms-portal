@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/lib/auth'
 import { useWorkspace } from '@/contexts/WorkspaceContext'
@@ -15,8 +15,7 @@ export default function DashboardPage() {
   const { session } = useAuth()
   const { activeWorkspace, loading: wsLoading } = useWorkspace()
   const association = activeWorkspace?.kind === 'association' ? activeWorkspace.association : null
-  const currentUserRole = activeWorkspace?.kind === 'association' ? activeWorkspace.role_code : undefined
-  const isExternalActor = currentUserRole === 'EKST'
+  const isExternalActor = activeWorkspace?.kind === 'association' && activeWorkspace.role_code === 'EKST'
 
   const [tasks, setTasks] = useState<TaskTemplate[]>([])
   const [completions, setCompletions] = useState<TaskCompletion[]>([])
@@ -146,17 +145,25 @@ export default function DashboardPage() {
     }
   }
 
-  const latestCompletion = (taskId: string): TaskCompletion | null =>
-    completions.find(c => c.task_template_id === taskId) ?? null
+  const latestByTask = useMemo(() => {
+    const m = new Map<string, TaskCompletion>()
+    for (const c of completions) {
+      if (!m.has(c.task_template_id)) m.set(c.task_template_id, c)
+    }
+    return m
+  }, [completions])
 
-  const visibleTasks = isExternalActor && currentMemberId
-    ? tasks.filter(task => assignments.get(task.id) === currentMemberId)
-    : tasks
+  const visibleTasks = useMemo(
+    () => isExternalActor && currentMemberId
+      ? tasks.filter(task => assignments.get(task.id) === currentMemberId)
+      : tasks,
+    [tasks, assignments, isExternalActor, currentMemberId],
+  )
 
-  const yearGroups = (() => {
+  const yearGroups = useMemo(() => {
     const map = new Map<GroupKey, TaskTemplate[]>()
     for (const task of visibleTasks) {
-      const key = getGroupKey(task, latestCompletion(task.id))
+      const key = getGroupKey(task, latestByTask.get(task.id) ?? null)
       if (!map.has(key)) map.set(key, [])
       map.get(key)!.push(task)
     }
@@ -172,15 +179,15 @@ export default function DashboardPage() {
         key,
         label: key === 'overdue' ? 'Forfalt' : key === 'per_project' ? 'Ved behov' : String(key),
         tasks: map.get(key)!.sort((a, b) => {
-          const aDate = getNextDueDate(a, latestCompletion(a.id))
-          const bDate = getNextDueDate(b, latestCompletion(b.id))
+          const aDate = getNextDueDate(a, latestByTask.get(a.id) ?? null)
+          const bDate = getNextDueDate(b, latestByTask.get(b.id) ?? null)
           if (!aDate && !bDate) return 0
           if (!aDate) return 1
           if (!bDate) return -1
           return aDate.getTime() - bDate.getTime()
         }),
       }))
-  })()
+  }, [visibleTasks, latestByTask])
 
   const currentYear = String(new Date().getFullYear())
   const defaultTab = yearGroups.find(g => String(g.key) === currentYear)

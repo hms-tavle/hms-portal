@@ -132,13 +132,24 @@ A React frontend with Supabase backend for managing HMS (Health, Safety and Envi
   - Click pencil icon on member row → fields become editable (name, email, role)
   - Validation: name required, email format check, role from enum
   - Save/Cancel buttons; RLS already allows authenticated members to update in their association
+- External actors (`EKST` role) — contractors/inspectors with limited access
+  - Added via "Legg til ekstern aktør" on members page; org lookup via Brønnøysundregisteret
+  - Dashboard shows only tasks assigned to them; members page hidden; no custom task creation
+  - RLS enforces access at DB level (`is_external_actor()` security definer helper)
+  - Visual separation in members list under "Eksterne aktører" divider
+  - Same invite flow as regular members; set password during invite acceptance
+  - Migrations: `20260420000000_add_company_to_members.sql`, `20260420010000_external_actor_rls.sql`
+- Invite page anon lookup — uses `lookup_invite(p_token uuid)` security definer RPC instead of direct table query
+  - Direct anon SELECT on `association_members` was blocked by RLS for unauthenticated users
+  - `lookup_invite` bypasses RLS safely: returns only 4 fixed fields, filters by token + expiry + unclaimed, token is unguessable UUID
+  - **Do not expand this function** — see security rules in `20260420085555_add_lookup_invite_fn.sql`
+  - If logged in as wrong user, invite page shows a warning instead of the claim button (prevents accidental claiming)
 
 ### Next up
 - **PWA** — manifest, service worker, installable on mobile/desktop
 - **Deadline reminder emails** — Resend + Supabase Edge Functions + pg_cron (daily check, send reminders for tasks due within 14 days)
 - **Feature flags** — hide conditional tasks (heis, lekeplass, radon) if building lacks those features
 - **Trial expiry enforcement** — lock access when trial ends
-- **External actors** — contractors/inspectors added to association, only see assigned tasks
 - **Admin panel** — internal page to view all organizations, members, external members, subscription status; soft-delete orgs (mark inactive); details TBD at implementation
 - **Test environment** — investigate staging/test setup without additional cost (e.g. Supabase branching, local shadow DB, or separate free-tier project)
 

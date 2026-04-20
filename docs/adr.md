@@ -71,3 +71,31 @@ Email verification is a security measure, but requiring it at signup creates fri
 - **Con:** Trial accounts may have invalid emails; we'll need to validate emails during subscription setup.
 
 ---
+
+## ADR-004: Invite Token Lookup via Security Definer RPC
+
+**Date:** 2026-04-20  
+**Status:** Accepted
+
+### Context
+The invite page must look up an invite record before the user has an account. Direct anon SELECT on `association_members` is blocked by RLS (all select policies require `authenticated`). The original anon policy (`invite_token IS NOT NULL AND invite_expires_at > now()`) was insufficient in practice because Supabase's anon role still could not read the row.
+
+### Decision
+Replace the direct table query with a `security definer` RPC function `lookup_invite(p_token uuid)` that bypasses RLS. The function returns exactly 4 fields: `full_name`, `role_code`, `email`, `association_name`.
+
+### Security invariants (must never be violated)
+1. The `returns table(...)` signature is the only data surface — never add columns without reviewing what becomes public.
+2. `p_token` must always be used as a bound parameter, never interpolated into dynamic SQL.
+3. The WHERE clause must always filter: `invite_token = p_token AND invite_expires_at > now() AND user_id IS NULL`. Removing any condition risks leaking claimed or non-invite rows.
+4. The function is callable via the public REST API — keep it minimal.
+
+### Why this is acceptable
+- The invite token is a 128-bit UUID (≈10³⁸ possibilities) — brute-forcing is infeasible.
+- The 4 returned fields are the same data that was already exposed under the old anon SELECT policy.
+- `claim_invite()` (also security definer) enforces the same conditions independently before writing.
+
+### Consequences
+- **Pro:** Invite lookup works for truly unauthenticated users.
+- **Con:** Adds a superuser-privilege function to the public API surface — requires discipline when editing.
+
+---

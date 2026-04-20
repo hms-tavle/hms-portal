@@ -18,7 +18,18 @@ function inviteUrl(token: string): string {
   return `${base}#/invite?token=${token}`
 }
 
-// ── Component ────────────────────────────────────────────────────────────────
+function makeInviteToken() {
+  return {
+    token: crypto.randomUUID(),
+    expiresAt: new Date(Date.now() + INVITE_EXPIRY_DAYS * 24 * 60 * 60 * 1000).toISOString(),
+  }
+}
+
+function byRoleOrder(a: AssociationMember, b: AssociationMember) {
+  const ai = ROLE_ORDER.indexOf(a.role_code)
+  const bi = ROLE_ORDER.indexOf(b.role_code)
+  return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi)
+}
 
 export default function MembersPage() {
   const navigate = useNavigate()
@@ -60,11 +71,7 @@ export default function MembersPage() {
         .select('id, full_name, email, role_code, user_id, invite_token, invite_expires_at, company')
         .eq('association_id', assocId)
 
-      const sorted = (membersData ?? []).sort((a, b) => {
-        const ai = ROLE_ORDER.indexOf(a.role_code)
-        const bi = ROLE_ORDER.indexOf(b.role_code)
-        return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi)
-      })
+      const sorted = (membersData ?? []).sort(byRoleOrder)
 
       setMembers(sorted)
       setMembersLoading(false)
@@ -75,8 +82,7 @@ export default function MembersPage() {
 
   async function generateInvite(memberId: string) {
     setGenerating(memberId)
-    const token = crypto.randomUUID()
-    const expiresAt = new Date(Date.now() + INVITE_EXPIRY_DAYS * 24 * 60 * 60 * 1000).toISOString()
+    const { token, expiresAt } = makeInviteToken()
 
     const { error } = await supabase
       .from('association_members')
@@ -188,8 +194,7 @@ export default function MembersPage() {
 
     setAddingExternalActor(true)
 
-    const token = crypto.randomUUID()
-    const expiresAt = new Date(Date.now() + INVITE_EXPIRY_DAYS * 24 * 60 * 60 * 1000).toISOString()
+    const { token, expiresAt } = makeInviteToken()
 
     const { data: insertedMember, error } = await supabase
       .from('association_members')
@@ -212,14 +217,7 @@ export default function MembersPage() {
       return
     }
 
-    setMembers(prev => {
-      const updated = [...prev, insertedMember]
-      return updated.sort((a, b) => {
-        const ai = ROLE_ORDER.indexOf(a.role_code)
-        const bi = ROLE_ORDER.indexOf(b.role_code)
-        return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi)
-      })
-    })
+    setMembers(prev => [...prev, insertedMember].sort(byRoleOrder))
 
     setShowAddExternalActor(false)
     setExternalActorForm({ full_name: '', email: '', company: '', orgnr: '' })
@@ -393,17 +391,15 @@ export default function MembersPage() {
                               <Edit2 size={16} />
                             </button>
                             {!member.user_id && (!member.email || member.role_code === 'EKST') && (
-                              <>
-                                {isShowingLink ? (
-                                  <Button size="sm" variant="outline" onClick={() => copyInvite(member.id, member.invite_token!)}>
-                                    {copied === member.id ? 'Kopiert!' : 'Kopier lenke'}
-                                  </Button>
-                                ) : (
-                                  <Button size="sm" variant="outline" disabled={generating === member.id} onClick={() => generateInvite(member.id)}>
-                                    {generating === member.id ? '…' : 'Inviter'}
-                                  </Button>
-                                )}
-                              </>
+                              isShowingLink ? (
+                                <Button size="sm" variant="outline" onClick={() => copyInvite(member.id, member.invite_token!)}>
+                                  {copied === member.id ? 'Kopiert!' : 'Kopier lenke'}
+                                </Button>
+                              ) : (
+                                <Button size="sm" variant="outline" disabled={generating === member.id} onClick={() => generateInvite(member.id)}>
+                                  {generating === member.id ? '…' : 'Inviter'}
+                                </Button>
+                              )
                             )}
                           </div>
                         </div>

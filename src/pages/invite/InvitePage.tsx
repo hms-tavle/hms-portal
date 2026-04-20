@@ -9,13 +9,6 @@ import { Label } from '@/components/ui/label'
 import { getRoleLabel } from '@/constants/roles'
 import { PASSWORD_MIN_LENGTH } from '@/constants/config'
 
-interface InviteRow {
-  full_name: string
-  role_code: string
-  email: string | null
-  associations: { navn: string } | null
-}
-
 interface MemberInfo {
   full_name: string
   role_code: string
@@ -51,22 +44,17 @@ export default function InvitePage() {
       }
 
       const { data, error } = await supabase
-        .from('association_members')
-        .select('full_name, role_code, email, associations(navn)')
-        .eq('invite_token', token)
-        .gt('invite_expires_at', new Date().toISOString())
-        .is('user_id', null)
+        .rpc('lookup_invite', { p_token: token })
         .single()
 
       if (error || !data) {
         setTokenError('Invitasjonslenken er ugyldig eller har utløpt.')
       } else {
-        const row = data as unknown as InviteRow
         setMember({
-          full_name: row.full_name,
-          role_code: row.role_code,
-          email: row.email,
-          associationName: row.associations?.navn ?? '',
+          full_name: data.full_name,
+          role_code: data.role_code,
+          email: data.email,
+          associationName: data.association_name ?? '',
         })
       }
       setLoadingToken(false)
@@ -162,9 +150,7 @@ export default function InvitePage() {
         </div>
 
         {session ? (
-          // User is already logged in
           member!.email && session.user.email !== member!.email ? (
-            // Logged in as a different user — block to prevent accidental claim
             <div className="space-y-3">
               <p className="text-sm text-muted-foreground">
                 Du er innlogget som <span className="font-medium text-foreground">{session.user.email}</span>, men denne invitasjonen gjelder{' '}
@@ -178,7 +164,6 @@ export default function InvitePage() {
               </Button>
             </div>
           ) : (
-            // Correct user — one click to join
             <div className="space-y-4">
               <p className="text-sm text-muted-foreground">
                 Du er allerede innlogget. Klikk for å bli med i {member!.associationName}.
@@ -190,7 +175,6 @@ export default function InvitePage() {
             </div>
           )
         ) : (
-          // User needs to authenticate first
           <div className="space-y-4">
             <div className="flex gap-1 border-b">
               {(['login', 'signup'] as AuthMode[]).map(mode => (
