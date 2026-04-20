@@ -1,0 +1,19 @@
+{
+  "name": "HMS-portal",
+  "short_name": "HMS",
+  "description": "HMS-oppgaver for borettslag og sameier",
+  "start_url": "/hms-portal/",
+  "scope": "/hms-portal/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#18181b",
+  "lang": "nb",
+  "icons": [
+    {
+      "src": "/hms-portal/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

@@ -45,7 +45,7 @@ export default function InvitePage() {
 
       const { data, error } = await supabase
         .rpc('lookup_invite', { p_token: token })
-        .single()
+        .single() as { data: { full_name: string; role_code: string; email: string | null; association_name: string } | null; error: unknown }
 
       if (error || !data) {
         setTokenError('Invitasjonslenken er ugyldig eller har utløpt.')

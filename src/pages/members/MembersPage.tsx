@@ -26,8 +26,8 @@ function makeInviteToken() {
 }
 
 function byRoleOrder(a: AssociationMember, b: AssociationMember) {
-  const ai = ROLE_ORDER.indexOf(a.role_code)
-  const bi = ROLE_ORDER.indexOf(b.role_code)
+  const ai = ROLE_ORDER.indexOf(a.role_code as never)
+  const bi = ROLE_ORDER.indexOf(b.role_code as never)
   return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi)
 }
 

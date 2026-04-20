@@ -18,7 +18,7 @@ export default function SettingsPage() {
   const [disabledFeatures, setDisabledFeatures] = useState<string[]>([])
 
   useEffect(() => {
-    if (!wsLoading && (!association || activeWorkspace?.role_code === 'EKST')) {
+    if (!wsLoading && (!association || (activeWorkspace?.kind === 'association' && activeWorkspace.role_code === 'EKST'))) {
       navigate('/dashboard')
     }
   }, [wsLoading, activeWorkspace, navigate])
